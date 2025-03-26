@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
-// Replace with your Mapbox token
-mapboxgl.accessToken = "YOUR_MAPBOX_TOKEN";
+// Replace with your Geoapify API key
+const GEOAPIFY_API_KEY = "ec4b42ecfa9c4b53a239b7ff842e5990";
 
 const RouteMap = ({ trip }) => {
   const mapContainer = useRef(null);
@@ -16,16 +16,16 @@ const RouteMap = ({ trip }) => {
 
     if (map.current) return; // prevents map from initializing more than once
 
-    // Initialize map
-    map.current = new mapboxgl.Map({
+    // Initialize map using MapLibre GL JS with Geoapify tiles
+    map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v11",
+      style: `https://maps.geoapify.com/v1/styles/osm-carto/style.json?apiKey=${GEOAPIFY_API_KEY}`,
       center: [-95.7129, 37.0902], // Center of US as default
       zoom: 3,
     });
 
     // Add controls
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.current.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.current.on("load", () => {
       // Collect all locations for bounds calculation
@@ -39,19 +39,26 @@ const RouteMap = ({ trip }) => {
         if (
           ["PICKUP", "DROPOFF", "FUEL", "REST"].includes(segment.segment_type)
         ) {
-          new mapboxgl.Marker({
-            color:
-              segment.segment_type === "PICKUP"
-                ? "#8B5CF6" // purple
-                : segment.segment_type === "DROPOFF"
-                ? "#EF4444" // red
-                : segment.segment_type === "FUEL"
-                ? "#10B981" // green
-                : "#F59E0B", // orange for REST
-          })
+          const markerColor =
+            segment.segment_type === "PICKUP"
+              ? "#8B5CF6" // purple
+              : segment.segment_type === "DROPOFF"
+              ? "#EF4444" // red
+              : segment.segment_type === "FUEL"
+              ? "#10B981" // green
+              : "#F59E0B"; // orange for REST
+
+          const markerElement = document.createElement("div");
+          markerElement.style.width = "20px";
+          markerElement.style.height = "20px";
+          markerElement.style.borderRadius = "50%";
+          markerElement.style.backgroundColor = markerColor;
+          markerElement.style.border = "2px solid white";
+
+          new maplibregl.Marker({ element: markerElement })
             .setLngLat([-95.7129, 37.0902]) // This should be the actual coordinates
             .setPopup(
-              new mapboxgl.Popup({ offset: 25 }).setHTML(
+              new maplibregl.Popup({ offset: 25 }).setHTML(
                 `<h3>${segment.segment_type}</h3>
                 <p>${segment.start_location}</p>
                 <p>${new Date(segment.start_time).toLocaleString()}</p>`
@@ -101,7 +108,7 @@ const RouteMap = ({ trip }) => {
       if (locations.length > 0) {
         const bounds = locations.reduce((bounds, coord) => {
           return bounds.extend(coord);
-        }, new mapboxgl.LngLatBounds(locations[0], locations[0]));
+        }, new maplibregl.LngLatBounds(locations[0], locations[0]));
 
         map.current.fitBounds(bounds, {
           padding: 50,

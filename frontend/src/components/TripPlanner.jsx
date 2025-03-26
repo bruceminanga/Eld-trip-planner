@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_BASE_URL = "https://your-backend-domain.com/api";
+const API_BASE_URL = "/api";
 
 const TripPlanner = () => {
   const [formData, setFormData] = useState({

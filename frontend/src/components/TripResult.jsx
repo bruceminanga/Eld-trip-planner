@@ -4,7 +4,7 @@ import axios from "axios";
 import RouteMap from "./RouteMap";
 import ELDLogViewer from "./ELDLogViewer";
 
-const API_BASE_URL = "https://your-backend-domain.com/api";
+const API_BASE_URL = "/api";
 
 const TripResult = () => {
   const { tripId } = useParams();
@@ -12,6 +12,7 @@ const TripResult = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeLogTab, setActiveLogTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     const fetchTripData = async () => {
