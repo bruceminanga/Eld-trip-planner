@@ -10,6 +10,10 @@ class RouteSegmentSerializer(serializers.ModelSerializer):
             "id",
             "start_location",
             "end_location",
+            # --- Coordinate Fields ---
+            "start_coordinates",
+            "end_coordinates",
+            # --- End Coordinate Fields ---
             "distance_miles",
             "estimated_duration_hours",
             "segment_type",
@@ -25,6 +29,7 @@ class ELDLogSerializer(serializers.ModelSerializer):
 
 
 class TripSerializer(serializers.ModelSerializer):
+    # Use the updated RouteSegmentSerializer
     segments = RouteSegmentSerializer(many=True, read_only=True)
     eld_logs = ELDLogSerializer(many=True, read_only=True)
 
@@ -37,7 +42,7 @@ class TripSerializer(serializers.ModelSerializer):
             "dropoff_location",
             "current_cycle_used",
             "created_at",
-            "segments",
+            "segments",  # Will now include coordinate fields
             "eld_logs",
         ]
 

@@ -3,606 +3,641 @@ import datetime
 import requests
 import math
 import pytz
-from dateutil import parser
-from decouple import config
+import urllib.parse
+import traceback # For better error logging
+from decouple import config # Use python-decouple for API Key
 
-# Constants for ELD regulations
+# --- IMPORTANT: Set your API Key ---
+# Option 1: Use python-decouple (install with 'pip install python-decouple')
+# Create a .env file in your project root with: GEOAPIFY_API_KEY=YOUR_ACTUAL_KEY
+# Then uncomment the next line:
+GEOAPIFY_API_KEY = config("GEOAPIFY_API_KEY", default=None)
+
+# Option 2: Direct assignment (less secure, replace with your key)
+# GEOAPIFY_API_KEY = "YOUR_GEOAPIFY_API_KEY"
+
+if not GEOAPIFY_API_KEY:
+    print("\n" + "*"*50)
+    print("CRITICAL WARNING: GEOAPIFY_API_KEY not found.")
+    print("Geocoding and Routing WILL fail. Check .env file or environment variables.")
+    print("*"*50 + "\n")
+    # You might want to raise an error here depending on desired behaviour
+    # raise ValueError("Geoapify API Key is missing!")
+
+
+# Constants for ELD regulations (adjust as needed)
 MAX_DRIVING_HOURS_PER_DAY = 11
 MAX_ON_DUTY_HOURS_PER_DAY = 14
 REQUIRED_REST_HOURS = 10
-MAX_CONSECUTIVE_DRIVING_HOURS = 8  # After 8 hours, need a 30-min break
-HOURS_BEFORE_BREAK = 8
+MAX_CONSECUTIVE_DRIVING_HOURS = 8  # Driver must take 30-min break by 8th hour
+HOURS_BEFORE_BREAK = 8 # Simplified: break needed if drive exceeds this
 BREAK_DURATION_HOURS = 0.5
-MAX_CYCLE_HOURS = 70  # 70 hours in 8 days
-AVERAGE_SPEED_MPH = 55
+MAX_CYCLE_HOURS = 70  # e.g., 70 hours in 8 days
+AVERAGE_SPEED_MPH = 55 # Adjust this based on typical conditions
 FUEL_STOP_DURATION_HOURS = 0.75
 PICKUP_DROPOFF_DURATION_HOURS = 1.0
-MAX_MILES_BEFORE_FUEL = 1000
-
-# Change this line
-GEOAPIFY_API_KEY = config("GEOAPIFY_API_KEY")  # Extract just the key part
+MAX_MILES_BEFORE_FUEL = 1000 # Adjust fuel range
 
 
 def geocode_location(location):
     """Convert a location name to lat/long coordinates using Geoapify Geocoding API"""
-    import urllib.parse
+    print(f"DEBUG: Attempting to geocode: '{location}'") # LOGGING
+    if not GEOAPIFY_API_KEY:
+        print("DEBUG: Geocoding failed - API Key missing.") # LOGGING
+        raise ValueError("Geoapify API Key is missing for geocoding.")
+    if not location:
+        print("DEBUG: Geocoding failed - Empty location string.") # LOGGING
+        raise ValueError("Location string cannot be empty for geocoding.")
 
-    # URL encode the location
     encoded_location = urllib.parse.quote(location)
-    url = f"https://api.geoapify.com/v1/geocode/search"
-
-    params = {
-        "text": location,
-        "apiKey": GEOAPIFY_API_KEY,  # Your Geoapify API key
-    }
+    url = "https://api.geoapify.com/v1/geocode/search"
+    params = {"text": encoded_location, "apiKey": GEOAPIFY_API_KEY, "limit": 1}
 
     try:
-        response = requests.get(url, params=params)
-
-        # For debugging
-        print(f"Geocoding URL: {url}")
-        print(f"Params: {params}")
-        print(f"Response status: {response.status_code}")
-
+        response = requests.get(url, params=params, timeout=10) # Added timeout
+        print(f"DEBUG: Geocode API URL called: {response.url}") # LOGGING URL
+        print(f"DEBUG: Geocode API Status Code: {response.status_code}") # LOGGING Status
+        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
         data = response.json()
 
-        if not data.get("features") or len(data.get("features", [])) == 0:
-            raise ValueError(f"Could not geocode location: {location}")
+        if not data.get("features"):
+            print(f"DEBUG: Geocoding failed - No features found for '{location}'. Response: {data}") # LOGGING
+            raise ValueError(f"Could not geocode location: '{location}'. API found no matches.")
 
-        # Get the coordinates [longitude, latitude] from the first feature
-        coordinates = data["features"][0]["geometry"]["coordinates"]
+        feature = data["features"][0]
+        coordinates = feature.get("geometry", {}).get("coordinates")
+        if not coordinates or not isinstance(coordinates, list) or len(coordinates) != 2:
+            print(f"DEBUG: Geocoding failed - Invalid coordinates in response for '{location}'. Geometry: {feature.get('geometry')}") # LOGGING
+            raise ValueError(f"Invalid coordinate format received for '{location}'.")
 
-        # Get place name
-        properties = data["features"][0]["properties"]
-        place_name = properties.get("formatted", location)
+        properties = feature.get("properties", {})
+        place_name = properties.get("formatted") or \
+                     properties.get("address_line1") or \
+                     f"{properties.get('name', '')}, {properties.get('city', '')}, {properties.get('state', '')}" or \
+                     location # Fallback
+        place_name = place_name.strip(", ").strip()
 
+        print(f"DEBUG: Geocoding SUCCESS for '{location}'. Name: '{place_name}', Coords: {coordinates}") # LOGGING
         return {"coordinates": coordinates, "place_name": place_name}
+
+    except requests.exceptions.Timeout:
+        print(f"DEBUG: Geocoding TIMEOUT for '{location}'.") # LOGGING
+        raise ValueError(f"Geocoding request timed out for: {location}")
+    except requests.exceptions.HTTPError as e:
+        print(f"DEBUG: Geocoding HTTP error for '{location}': {e}. Response: {response.text[:500]}") # LOGGING
+        if response.status_code == 401:
+             raise ValueError(f"Geocoding Authentication Failed (401). Check your API Key.")
+        raise ValueError(f"Geocoding failed for '{location}' (HTTP {response.status_code}).")
+    except requests.exceptions.RequestException as e:
+        print(f"DEBUG: Geocoding network error for '{location}': {e}") # LOGGING
+        raise ValueError(f"Network error during geocoding: {location}")
     except Exception as e:
-        print(f"Geocoding error: {str(e)}")
+        print(f"DEBUG: Geocoding unexpected error for '{location}': {e}") # LOGGING
+        traceback.print_exc()
         raise ValueError(f"Could not geocode location: {location}")
 
 
-def get_route_data(origin, destination):
-    """Get route data between two points using Geoapify Routing API"""
-    origin_coords = origin["coordinates"]
-    dest_coords = destination["coordinates"]
+def get_route_data(origin_location, destination_location):
+    """Get route data between two location dicts using Geoapify Routing API"""
+    origin_coords = origin_location.get("coordinates")
+    dest_coords = destination_location.get("coordinates")
+    print(f"DEBUG: Attempting routing. Origin='{origin_location.get('place_name')}'({origin_coords}), Dest='{destination_location.get('place_name')}'({dest_coords})") # LOGGING
 
-    # Geoapify expects coordinates in this order: longitude,latitude
-    url = f"https://api.geoapify.com/v1/routing"
+    if not GEOAPIFY_API_KEY:
+        print("DEBUG: Routing failed - API Key missing.") # LOGGING
+        raise ValueError("Geoapify API Key is missing for routing.")
+    if not origin_coords or not isinstance(origin_coords, list) or len(origin_coords) != 2:
+        print("DEBUG: Routing failed - Invalid origin coordinates.") # LOGGING
+        raise ValueError(f"Invalid origin coordinates for routing: {origin_coords}")
+    if not dest_coords or not isinstance(dest_coords, list) or len(dest_coords) != 2:
+        print("DEBUG: Routing failed - Invalid destination coordinates.") # LOGGING
+        raise ValueError(f"Invalid destination coordinates for routing: {dest_coords}")
 
-    params = {
-        "waypoints": f"{origin_coords[1]},{origin_coords[0]}|{dest_coords[1]},{dest_coords[0]}",
-        "mode": "drive",
-        "apiKey": GEOAPIFY_API_KEY,
-    }
+    # Format: latitude,longitude
+    waypoints = f"{origin_coords[1]},{origin_coords[0]}|{dest_coords[1]},{dest_coords[0]}"
+    url = "https://api.geoapify.com/v1/routing"
+    params = {"waypoints": waypoints, "mode": "drive", "apiKey": GEOAPIFY_API_KEY}
 
     try:
-        response = requests.get(url, params=params)
-
-        # For debugging
-        print(f"Routing URL: {url}")
-        print(f"Params: {params}")
-        print(f"Response status: {response.status_code}")
-        print(f"Response text preview: {response.text[:300]}...")
-
+        response = requests.get(url, params=params, timeout=15) # Added timeout
+        print(f"DEBUG: Routing API URL called: {response.url.replace(GEOAPIFY_API_KEY, '***KEY***')}") # LOGGING URL (key redacted)
+        print(f"DEBUG: Routing API Status Code: {response.status_code}") # LOGGING Status
+        response.raise_for_status()
         data = response.json()
 
-        if response.status_code != 200 or not data.get("features"):
-            raise ValueError(
-                f"Could not get route from {origin['place_name']} to {destination['place_name']}"
-            )
+        if not data.get("features"):
+            print(f"DEBUG: Routing failed - No features found between {origin_location['place_name']} and {destination_location['place_name']}. Response: {data}") # LOGGING
+            # Don't fallback here, let the caller handle missing route
+            raise ValueError(f"Could not get route from '{origin_location['place_name']}' to '{destination_location['place_name']}'. API found no path.")
 
         route = data["features"][0]
+        properties = route.get("properties", {})
+        distance_meters = properties.get("distance")
+        duration_seconds = properties.get("time")
+        geometry = route.get("geometry") # Can be null if API doesn't return it
 
-        # Extract distance and duration from properties
-        distance_meters = route["properties"]["distance"]
-        duration_seconds = route["properties"]["time"]
+        # Log geometry type if present
+        print(f"DEBUG: Routing SUCCESS. Geometry type: {geometry.get('type') if geometry else 'None'}") # LOGGING
 
-        # Convert to miles and hours
-        distance_miles = distance_meters * 0.000621371  # meters to miles
-        duration_hours = duration_seconds / 3600  # seconds to hours
+        if distance_meters is None or duration_seconds is None:
+             print(f"DEBUG: Routing failed - API response missing distance or time. Properties: {properties}") # LOGGING
+             raise ValueError("API routing response missing distance or time properties.")
 
+        distance_miles = distance_meters * 0.000621371
+        duration_hours = duration_seconds / 3600
+
+        print(f"DEBUG: Routed from '{origin_location['place_name']}' to '{destination_location['place_name']}': {distance_miles:.1f} miles, {duration_hours:.2f} hours")
         return {
             "distance_miles": distance_miles,
             "duration_hours": duration_hours,
-            "geometry": route["geometry"],  # This will be a GeoJSON LineString
+            "geometry": geometry, # Pass geometry along
         }
+
+    except requests.exceptions.Timeout:
+        print(f"DEBUG: Routing TIMEOUT between '{origin_location.get('place_name')}' and '{destination_location.get('place_name')}'.") # LOGGING
+        raise ValueError("Routing request timed out.")
+    except requests.exceptions.HTTPError as e:
+        print(f"DEBUG: Routing HTTP error: {e}. Response: {response.text[:500]}") # LOGGING
+        if response.status_code == 401:
+             raise ValueError(f"Routing Authentication Failed (401). Check your API Key.")
+        # Check for specific Geoapify errors if possible from response.text
+        raise ValueError(f"Routing failed (HTTP {response.status_code}).")
+    except requests.exceptions.RequestException as e:
+        print(f"DEBUG: Routing network error: {e}") # LOGGING
+        raise ValueError("Network error during routing.")
     except Exception as e:
-        print(f"Error getting route: {str(e)}")
-        # Fallback: if API fails, estimate based on straight-line distance
-        # This is just an approximation for when the API fails
-        import math
-
-        # Calculate Haversine distance (as the crow flies)
-        lon1, lat1 = origin_coords
-        lon2, lat2 = dest_coords
-
-        # Convert to radians
-        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-
-        # Haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = (
-            math.sin(dlat / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        )
-        c = 2 * math.asin(math.sqrt(a))
-        r = 3956  # Radius of earth in miles
-
-        # Calculate straight-line distance
-        haversine_miles = c * r
-
-        # Apply a factor to account for road distance being longer than straight line
-        estimated_miles = haversine_miles * 1.3
-
-        # Estimate duration based on average speed
-        estimated_hours = estimated_miles / AVERAGE_SPEED_MPH
-
-        # Create a simple LineString geometry
-        simplified_geometry = {
-            "type": "LineString",
-            "coordinates": [origin_coords, dest_coords],
-        }
-
-        print(f"API failed. Using estimated distance: {estimated_miles} miles")
-
-        return {
-            "distance_miles": estimated_miles,
-            "duration_hours": estimated_hours,
-            "geometry": simplified_geometry,
-        }
+        print(f"DEBUG: Routing unexpected error: {e}") # LOGGING
+        traceback.print_exc()
+        raise ValueError("Unexpected error during routing.")
 
 
-def plan_route(current_location, pickup_location, dropoff_location, current_cycle_used):
-    """
-    Plan a route based on location inputs and ELD regulations.
-    Returns route segments and stops.
-    """
-    # Start with current timestamp
+def get_point_along_route(geometry, distance_ratio):
+    """Estimates coordinates partway along a LineString geometry (basic)."""
+    geom_type = geometry.get('type') if geometry else 'None'
+    coords = geometry.get('coordinates') if geometry else None
+    print(f"DEBUG: get_point_along_route - GeomType: {geom_type}, Ratio: {distance_ratio:.3f}, HasCoords: {coords is not None}") # LOGGING
+
+    if geom_type != 'LineString' or not coords:
+        print("DEBUG: get_point_along_route - Invalid geometry or no coordinates, returning None.") # LOGGING
+        return None
+
+    total_points = len(coords)
+    if total_points < 2:
+        result_coords = coords[0] if total_points == 1 else None
+        print(f"DEBUG: get_point_along_route - Only {total_points} points, returning: {result_coords}") # LOGGING
+        return result_coords
+
+    distance_ratio = max(0.0, min(1.0, distance_ratio))
+    target_index_float = (total_points - 1) * distance_ratio
+    index1 = int(target_index_float)
+    index2 = min(index1 + 1, total_points - 1)
+
+    if index1 >= total_points - 1:
+        result_coords = coords[-1]
+        print(f"DEBUG: get_point_along_route - Ratio >= 1, returning last point: {result_coords}") # LOGGING
+        return result_coords
+    if index1 == index2:
+        result_coords = coords[index1]
+        print(f"DEBUG: get_point_along_route - Integer index, returning point {index1}: {result_coords}") # LOGGING
+        return result_coords
+
+    lon1, lat1 = coords[index1]
+    lon2, lat2 = coords[index2]
+    fraction = target_index_float - index1
+    interp_lon = lon1 + (lon2 - lon1) * fraction
+    interp_lat = lat1 + (lat2 - lat1) * fraction
+    result_coords = [interp_lon, interp_lat]
+    print(f"DEBUG: get_point_along_route - Interpolated Result: {result_coords}") # LOGGING
+    return result_coords
+
+
+def plan_route(current_location_str, pickup_location_str, dropoff_location_str, current_cycle_used_hours):
+    """Plans a route including stops, returning segments with coordinates."""
+    print(f"\n{'='*10} Starting Route Planning {'='*10}")
+    print(f"Locations: '{current_location_str}' -> '{pickup_location_str}' -> '{dropoff_location_str}'")
+    print(f"Initial Cycle Used: {current_cycle_used_hours:.2f} hours")
+
     current_time = datetime.datetime.now(pytz.utc)
     remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY
     remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY
-    remaining_cycle = MAX_CYCLE_HOURS - current_cycle_used
+    remaining_cycle = MAX_CYCLE_HOURS - current_cycle_used_hours
+    driving_hours_since_last_break = 0
 
-    # Geocode all locations
-    current_loc = geocode_location(current_location)
-    pickup_loc = geocode_location(pickup_location)
-    dropoff_loc = geocode_location(dropoff_location)
+    try:
+        print("DEBUG: plan_route - Geocoding initial locations...")
+        current_loc = geocode_location(current_location_str)
+        pickup_loc = geocode_location(pickup_location_str)
+        dropoff_loc = geocode_location(dropoff_location_str)
+        print(f"DEBUG: plan_route - Geocode results: Current={current_loc.get('coordinates')}, Pickup={pickup_loc.get('coordinates')}, Dropoff={dropoff_loc.get('coordinates')}")
 
-    # Get route data for both segments
-    to_pickup_route = get_route_data(current_loc, pickup_loc)
-    pickup_to_dropoff_route = get_route_data(pickup_loc, dropoff_loc)
+        print("DEBUG: plan_route - Getting route data...")
+        to_pickup_route = get_route_data(current_loc, pickup_loc)
+        pickup_to_dropoff_route = get_route_data(pickup_loc, dropoff_loc)
+        print(f"DEBUG: plan_route - Route geometries obtained. ToPickup: {to_pickup_route.get('geometry') is not None}, PickupToDropoff: {pickup_to_dropoff_route.get('geometry') is not None}")
 
-    # Initialize results
+    except ValueError as e:
+        print(f"CRITICAL ERROR: plan_route - Failed during initial setup: {e}")
+        raise # Re-raise to be caught by the view
+
     segments = []
-    route_geometries = {"type": "FeatureCollection", "features": []}
+    current_pos_coords = current_loc.get("coordinates")
+    current_pos_name = current_loc.get("place_name", "Unknown Start")
+    print(f"DEBUG: plan_route - Initial Position: '{current_pos_name}' Coords: {current_pos_coords}")
+    if not current_pos_coords:
+        raise ValueError("Failed to get valid starting coordinates.") # Cannot proceed without start coords
 
-    # Add route geometries
-    route_geometries["features"].append(
-        {
-            "type": "Feature",
-            "geometry": to_pickup_route["geometry"],
-            "properties": {"segment": "to_pickup"},
-        }
-    )
+    # --- Process Leg 1: Current Location to Pickup ---
+    print("\n--- Processing Leg 1: Current to Pickup ---")
+    target_pos_coords = pickup_loc.get("coordinates")
+    target_pos_name = pickup_loc.get("place_name", "Unknown Pickup")
+    route_geom = to_pickup_route.get("geometry") # May be None if routing failed but didn't raise error (should not happen now)
+    total_route_distance = to_pickup_route.get("distance_miles", 0)
+    distance_covered_on_leg = 0
+    fuel_distance_since_last_stop = 0
 
-    route_geometries["features"].append(
-        {
-            "type": "Feature",
-            "geometry": pickup_to_dropoff_route["geometry"],
-            "properties": {"segment": "pickup_to_dropoff"},
-        }
-    )
+    leg = 1
+    loop_counter = 0 # Safety break
+    max_loops = 100 # Safety break
 
-    # Calculate segments for drive to pickup
-    current_pos = current_loc
-    remaining_distance = to_pickup_route["distance_miles"]
-    fuel_distance = 0  # Track distance since last fuel stop
+    while distance_covered_on_leg < total_route_distance and loop_counter < max_loops :
+        loop_counter += 1
+        print(f"\nLeg {leg} - Loop {loop_counter}/{max_loops}:")
+        print(f"  Current Pos: '{current_pos_name}' ({current_pos_coords})")
+        print(f"  Target Pos: '{target_pos_name}' ({target_pos_coords})")
+        print(f"  Distance Covered: {distance_covered_on_leg:.1f} / Total: {total_route_distance:.1f}")
+        print(f"  HOS Remaining: Drive={remaining_daily_driving:.2f}, Duty={remaining_daily_duty:.2f}, Cycle={remaining_cycle:.2f}")
+        print(f"  Driving Since Break: {driving_hours_since_last_break:.2f}")
+        print(f"  Distance Since Fuel: {fuel_distance_since_last_stop:.1f}")
 
-    while remaining_distance > 0:
-        # Check if we need to take a rest based on daily limits
-        if (
-            remaining_daily_driving <= 0
-            or remaining_daily_duty <= 0
-            or remaining_cycle <= 0
-        ):
-            # Need to take a rest
+        segment_start_time = current_time
+        segment_start_coords = list(current_pos_coords) if current_pos_coords else None # Copy coords
+        segment_start_name = current_pos_name
+
+        # 1. Check for mandatory 10-hour rest
+        if remaining_daily_driving <= 0.01 or remaining_daily_duty <= 0.01 or remaining_cycle <= 0.01:
+            print("  Action: Taking 10-hour mandatory rest.")
             rest_hours = REQUIRED_REST_HOURS
             rest_end_time = current_time + datetime.timedelta(hours=rest_hours)
-
-            segments.append(
-                {
-                    "type": "REST",
-                    "start_location": current_pos["place_name"],
-                    "end_location": current_pos["place_name"],
-                    "distance_miles": 0,
-                    "duration_hours": rest_hours,
-                    "start_time": current_time,
-                    "end_time": rest_end_time,
-                }
-            )
-
+            segments.append({
+                "type": "REST", "start_location": segment_start_name, "end_location": segment_start_name,
+                "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords,
+                "distance_miles": 0, "duration_hours": rest_hours, "start_time": segment_start_time, "end_time": rest_end_time,
+            })
             current_time = rest_end_time
-            remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY
-            remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY
+            remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY; remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY; driving_hours_since_last_break = 0
+            print(f"  Reset daily limits. New time: {current_time}")
             continue
 
-        # Check if we need a break after 8 hours of driving
-        hours_to_drive = min(
-            remaining_daily_driving, HOURS_BEFORE_BREAK, remaining_cycle
-        )
-        distance_can_cover = hours_to_drive * AVERAGE_SPEED_MPH
+        # 2. Determine max driving distance before *next* potential stop
+        max_drive_hrs_before_30m_break = max(0, HOURS_BEFORE_BREAK - driving_hours_since_last_break) # Ensure non-negative
+        drivable_hours = min(remaining_daily_driving, remaining_daily_duty, remaining_cycle, max_drive_hrs_before_30m_break)
 
-        # Check if we need to fuel
-        if (
-            fuel_distance + min(distance_can_cover, remaining_distance)
-            > MAX_MILES_BEFORE_FUEL
-        ):
-            # Add a fuel stop
-            fuel_end_time = current_time + datetime.timedelta(
-                hours=FUEL_STOP_DURATION_HOURS
-            )
+        if drivable_hours <= 0.01:
+             print("  Action: No driving time available before next limit/break.")
+             if max_drive_hrs_before_30m_break <= 0.01:
+                 print("  Action: Taking mandatory 30-min break.")
+                 break_hours = BREAK_DURATION_HOURS; break_end_time = current_time + datetime.timedelta(hours=break_hours)
+                 segments.append({"type": "REST", "start_location": segment_start_name, "end_location": segment_start_name, "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords, "distance_miles": 0, "duration_hours": break_hours, "start_time": segment_start_time, "end_time": break_end_time,})
+                 current_time = break_end_time; remaining_daily_duty -= break_hours; remaining_cycle -= break_hours; driving_hours_since_last_break = 0
+                 print(f"  Finished 30m break. New time: {current_time}")
+                 continue
+             else: # Should be caught by check 1, but as safety
+                 print("  Action: Taking 10-hour rest (fallback - should not be reached)."); rest_hours = REQUIRED_REST_HOURS; rest_end_time = current_time + datetime.timedelta(hours=rest_hours)
+                 segments.append({"type": "REST", "start_location": segment_start_name,"end_location": segment_start_name, "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords, "distance_miles": 0,"duration_hours": rest_hours,"start_time": segment_start_time,"end_time": rest_end_time})
+                 current_time = rest_end_time; remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY; remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY; driving_hours_since_last_break = 0
+                 continue
 
-            segments.append(
-                {
-                    "type": "FUEL",
-                    "start_location": current_pos["place_name"],
-                    "end_location": current_pos["place_name"],
-                    "distance_miles": 0,
-                    "duration_hours": FUEL_STOP_DURATION_HOURS,
-                    "start_time": current_time,
-                    "end_time": fuel_end_time,
-                }
-            )
+        # Calculate max distance possible in this driving block
+        max_drivable_distance = drivable_hours * AVERAGE_SPEED_MPH
+        distance_remaining_on_leg = max(0, total_route_distance - distance_covered_on_leg) # Ensure non-negative
 
-            current_time = fuel_end_time
-            fuel_distance = 0
-            remaining_daily_duty -= FUEL_STOP_DURATION_HOURS
-            remaining_cycle -= FUEL_STOP_DURATION_HOURS
-            continue
+        # 3. Check if fueling is needed within this drivable distance
+        distance_before_fuel_needed = max(0, MAX_MILES_BEFORE_FUEL - fuel_distance_since_last_stop)
+        potential_drive_dist = min(max_drivable_distance, distance_remaining_on_leg)
+        needs_fuel_before_limit = distance_before_fuel_needed < potential_drive_dist
 
-        # Calculate how much of the route we can cover
-        actual_distance = min(distance_can_cover, remaining_distance)
-        actual_hours = actual_distance / AVERAGE_SPEED_MPH
-
-        # Calculate intermediate point (this is simplified)
-        if actual_distance < remaining_distance:
-            # We need to find an approximate point along the route
-            # For simplicity, we'll just modify the place name
-            intermediate_pos = {
-                "place_name": f"Interstate point {actual_distance:.1f} miles from {current_pos['place_name']}",
-                "coordinates": current_pos["coordinates"],  # Simplified
-            }
+        distance_this_drive_segment = 0
+        if needs_fuel_before_limit:
+            # Drive up to the point fuel is needed, or the remaining leg distance, whichever is smaller
+            distance_this_drive_segment = min(distance_before_fuel_needed, distance_remaining_on_leg)
+            print(f"  Action: Driving towards potential fuel stop ({distance_this_drive_segment:.1f} miles).")
         else:
-            intermediate_pos = pickup_loc
+            # Drive as far as possible towards target or until HOS limit
+            distance_this_drive_segment = potential_drive_dist
+            print(f"  Action: Driving towards target/HOS limit ({distance_this_drive_segment:.1f} miles).")
 
-        drive_end_time = current_time + datetime.timedelta(hours=actual_hours)
+        if distance_this_drive_segment <= 0.01:
+             print("  Warning: Calculated drive segment distance is negligible. Forcing 30m break to prevent potential loop.")
+             break_hours = BREAK_DURATION_HOURS; break_end_time = current_time + datetime.timedelta(hours=break_hours)
+             segments.append({"type": "REST", "start_location": segment_start_name,"end_location": segment_start_name, "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords, "distance_miles": 0, "duration_hours": break_hours, "start_time": segment_start_time, "end_time": break_end_time}); current_time = break_end_time; remaining_daily_duty -= break_hours; remaining_cycle -= break_hours; driving_hours_since_last_break = 0
+             continue
 
-        segments.append(
-            {
-                "type": "DRIVE",
-                "start_location": current_pos["place_name"],
-                "end_location": intermediate_pos["place_name"],
-                "distance_miles": actual_distance,
-                "duration_hours": actual_hours,
-                "start_time": current_time,
-                "end_time": drive_end_time,
-            }
-        )
+        # Calculate drive segment details
+        actual_drive_hours = distance_this_drive_segment / AVERAGE_SPEED_MPH if AVERAGE_SPEED_MPH > 0 else 0
+        drive_end_time = current_time + datetime.timedelta(hours=actual_drive_hours)
+        new_total_distance_covered = distance_covered_on_leg + distance_this_drive_segment
 
-        current_time = drive_end_time
-        current_pos = intermediate_pos
-        remaining_distance -= actual_distance
-        remaining_daily_driving -= actual_hours
-        remaining_daily_duty -= actual_hours
-        remaining_cycle -= actual_hours
-        fuel_distance += actual_distance
+        # Estimate end coordinates for this drive segment
+        ratio_on_leg = new_total_distance_covered / total_route_distance if total_route_distance > 0 else 1.0
+        is_final_segment_of_leg = ratio_on_leg >= 1.0 - 1e-6 # Floating point comparison
 
-        # Check if we need a break
-        if remaining_daily_driving <= 0 or (
-            MAX_DRIVING_HOURS_PER_DAY - remaining_daily_driving >= HOURS_BEFORE_BREAK
-        ):
-            # Take a 30-min break
-            break_end_time = current_time + datetime.timedelta(
-                hours=BREAK_DURATION_HOURS
-            )
-
-            segments.append(
-                {
-                    "type": "REST",
-                    "start_location": current_pos["place_name"],
-                    "end_location": current_pos["place_name"],
-                    "distance_miles": 0,
-                    "duration_hours": BREAK_DURATION_HOURS,
-                    "start_time": current_time,
-                    "end_time": break_end_time,
-                }
-            )
-
-            current_time = break_end_time
-            remaining_daily_duty -= BREAK_DURATION_HOURS
-            remaining_cycle -= BREAK_DURATION_HOURS
-
-    # Add pickup stop
-    pickup_end_time = current_time + datetime.timedelta(
-        hours=PICKUP_DROPOFF_DURATION_HOURS
-    )
-
-    segments.append(
-        {
-            "type": "PICKUP",
-            "start_location": pickup_loc["place_name"],
-            "end_location": pickup_loc["place_name"],
-            "distance_miles": 0,
-            "duration_hours": PICKUP_DROPOFF_DURATION_HOURS,
-            "start_time": current_time,
-            "end_time": pickup_end_time,
-        }
-    )
-
-    current_time = pickup_end_time
-    current_pos = pickup_loc
-    remaining_daily_duty -= PICKUP_DROPOFF_DURATION_HOURS
-    remaining_cycle -= PICKUP_DROPOFF_DURATION_HOURS
-
-    # Calculate segments for drive to dropoff (similar logic)
-    remaining_distance = pickup_to_dropoff_route["distance_miles"]
-
-    while remaining_distance > 0:
-        # Logic similar to the drive to pickup
-        if (
-            remaining_daily_driving <= 0
-            or remaining_daily_duty <= 0
-            or remaining_cycle <= 0
-        ):
-            rest_hours = REQUIRED_REST_HOURS
-            rest_end_time = current_time + datetime.timedelta(hours=rest_hours)
-
-            segments.append(
-                {
-                    "type": "REST",
-                    "start_location": current_pos["place_name"],
-                    "end_location": current_pos["place_name"],
-                    "distance_miles": 0,
-                    "duration_hours": rest_hours,
-                    "start_time": current_time,
-                    "end_time": rest_end_time,
-                }
-            )
-
-            current_time = rest_end_time
-            remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY
-            remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY
-            continue
-
-        hours_to_drive = min(
-            remaining_daily_driving, HOURS_BEFORE_BREAK, remaining_cycle
-        )
-        distance_can_cover = hours_to_drive * AVERAGE_SPEED_MPH
-
-        if (
-            fuel_distance + min(distance_can_cover, remaining_distance)
-            > MAX_MILES_BEFORE_FUEL
-        ):
-            fuel_end_time = current_time + datetime.timedelta(
-                hours=FUEL_STOP_DURATION_HOURS
-            )
-
-            segments.append(
-                {
-                    "type": "FUEL",
-                    "start_location": current_pos["place_name"],
-                    "end_location": current_pos["place_name"],
-                    "distance_miles": 0,
-                    "duration_hours": FUEL_STOP_DURATION_HOURS,
-                    "start_time": current_time,
-                    "end_time": fuel_end_time,
-                }
-            )
-
-            current_time = fuel_end_time
-            fuel_distance = 0
-            remaining_daily_duty -= FUEL_STOP_DURATION_HOURS
-            remaining_cycle -= FUEL_STOP_DURATION_HOURS
-            continue
-
-        actual_distance = min(distance_can_cover, remaining_distance)
-        actual_hours = actual_distance / AVERAGE_SPEED_MPH
-
-        if actual_distance < remaining_distance:
-            intermediate_pos = {
-                "place_name": f"Interstate point {actual_distance:.1f} miles from {current_pos['place_name']}",
-                "coordinates": current_pos["coordinates"],  # Simplified
-            }
+        drive_end_coords = None
+        if is_final_segment_of_leg:
+            drive_end_coords = list(target_pos_coords) if target_pos_coords else None # Ensure it's the target
         else:
-            intermediate_pos = dropoff_loc
+            # Try to interpolate
+            drive_end_coords_candidate = get_point_along_route(route_geom, ratio_on_leg)
+            if drive_end_coords_candidate:
+                drive_end_coords = drive_end_coords_candidate
+            else:
+                print(f"  Warning: Could not interpolate end coords for drive segment, using start coords as fallback.")
+                drive_end_coords = list(segment_start_coords) if segment_start_coords else None # Fallback
 
-        drive_end_time = current_time + datetime.timedelta(hours=actual_hours)
+        drive_end_name = target_pos_name if is_final_segment_of_leg else f"Point approx. {distance_this_drive_segment:.1f} miles driven towards {target_pos_name}"
 
-        segments.append(
-            {
-                "type": "DRIVE",
-                "start_location": current_pos["place_name"],
-                "end_location": intermediate_pos["place_name"],
-                "distance_miles": actual_distance,
-                "duration_hours": actual_hours,
-                "start_time": current_time,
-                "end_time": drive_end_time,
-            }
-        )
-
-        current_time = drive_end_time
-        current_pos = intermediate_pos
-        remaining_distance -= actual_distance
-        remaining_daily_driving -= actual_hours
-        remaining_daily_duty -= actual_hours
-        remaining_cycle -= actual_hours
-        fuel_distance += actual_distance
-
-        if remaining_daily_driving <= 0 or (
-            MAX_DRIVING_HOURS_PER_DAY - remaining_daily_driving >= HOURS_BEFORE_BREAK
-        ):
-            break_end_time = current_time + datetime.timedelta(
-                hours=BREAK_DURATION_HOURS
-            )
-
-            segments.append(
-                {
-                    "type": "REST",
-                    "start_location": current_pos["place_name"],
-                    "end_location": current_pos["place_name"],
-                    "distance_miles": 0,
-                    "duration_hours": BREAK_DURATION_HOURS,
-                    "start_time": current_time,
-                    "end_time": break_end_time,
-                }
-            )
-
-            current_time = break_end_time
-            remaining_daily_duty -= BREAK_DURATION_HOURS
-            remaining_cycle -= BREAK_DURATION_HOURS
-
-    # Add dropoff stop
-    dropoff_end_time = current_time + datetime.timedelta(
-        hours=PICKUP_DROPOFF_DURATION_HOURS
-    )
-
-    segments.append(
-        {
-            "type": "DROPOFF",
-            "start_location": dropoff_loc["place_name"],
-            "end_location": dropoff_loc["place_name"],
-            "distance_miles": 0,
-            "duration_hours": PICKUP_DROPOFF_DURATION_HOURS,
-            "start_time": current_time,
-            "end_time": dropoff_end_time,
+        # Append the DRIVE segment
+        segment_to_add = {
+            "type": "DRIVE", "start_location": segment_start_name, "end_location": drive_end_name,
+            "start_coordinates": segment_start_coords, # From start of loop iteration
+            "end_coordinates": drive_end_coords,     # Calculated/Target coords
+            "distance_miles": distance_this_drive_segment, "duration_hours": actual_drive_hours,
+            "start_time": segment_start_time, "end_time": drive_end_time,
         }
-    )
+        print(f"  DEBUG: Appending DRIVE Segment - Start: {segment_to_add['start_coordinates']}, End: {segment_to_add['end_coordinates']}") # LOGGING
+        segments.append(segment_to_add)
+
+        # Update state AFTER the drive segment
+        current_time = drive_end_time
+        current_pos_coords = drive_end_coords # CRITICAL UPDATE
+        current_pos_name = drive_end_name
+        distance_covered_on_leg = new_total_distance_covered # Use new total
+        remaining_daily_driving -= actual_drive_hours
+        remaining_daily_duty -= actual_drive_hours
+        remaining_cycle -= actual_drive_hours
+        driving_hours_since_last_break += actual_drive_hours
+        fuel_distance_since_last_stop += distance_this_drive_segment
+
+        print(f"  Drive segment finished. New Pos Coords: {current_pos_coords}")
+
+        # 4. If fuel was the reason we stopped this drive segment, add fuel stop
+        # Check if fuel distance limit was reached *by the end* of this segment
+        if fuel_distance_since_last_stop >= MAX_MILES_BEFORE_FUEL - 0.1 and not is_final_segment_of_leg:
+            print("  Action: Taking fuel stop after drive segment.")
+            fuel_hours = FUEL_STOP_DURATION_HOURS; fuel_end_time = current_time + datetime.timedelta(hours=fuel_hours)
+            # Fuel stop happens *at the current location*
+            segments.append({"type": "FUEL", "start_location": current_pos_name, "end_location": current_pos_name, "start_coordinates": current_pos_coords, "end_coordinates": current_pos_coords, "distance_miles": 0, "duration_hours": fuel_hours, "start_time": current_time, "end_time": fuel_end_time,})
+            current_time = fuel_end_time; remaining_daily_duty -= fuel_hours; remaining_cycle -= fuel_hours
+            fuel_distance_since_last_stop = 0 # Reset fuel counter
+            print(f"  Finished fuel stop. New time: {current_time}")
+            # No continue needed here, loop will re-evaluate HOS for next drive
+
+        # 5. Check if 30-min break is needed *now* (after driving, before potential next drive/stop)
+        elif driving_hours_since_last_break >= HOURS_BEFORE_BREAK - 0.01 and not is_final_segment_of_leg:
+            print("  Action: Taking 30-min break after drive segment.")
+            break_hours = BREAK_DURATION_HOURS; break_end_time = current_time + datetime.timedelta(hours=break_hours)
+            segments.append({"type": "REST", "start_location": current_pos_name, "end_location": current_pos_name, "start_coordinates": current_pos_coords, "end_coordinates": current_pos_coords, "distance_miles": 0, "duration_hours": break_hours, "start_time": current_time, "end_time": break_end_time,})
+            current_time = break_end_time; remaining_daily_duty -= break_hours; remaining_cycle -= break_hours
+            driving_hours_since_last_break = 0 # Reset break timer
+            print(f"  Finished 30m break. New time: {current_time}")
+            # No continue needed here
+
+    if loop_counter >= max_loops:
+        print(f"WARNING: Exceeded max loops ({max_loops}) in Leg {leg}. Route planning may be incomplete.")
+
+    # --- End of Leg 1 Loop ---
+    print(f"--- Finished Leg 1 (Current Location to Pickup) ---")
+
+    # --- Add Pickup Stop ---
+    if distance_covered_on_leg >= total_route_distance - 0.1: # Ensure we actually reached pickup
+        print("Action: Adding PICKUP stop.")
+        pickup_duration = PICKUP_DROPOFF_DURATION_HOURS
+        pickup_end_time = current_time + datetime.timedelta(hours=pickup_duration)
+        # Ensure position is exactly at pickup location after the leg
+        pickup_coords = pickup_loc.get("coordinates")
+        pickup_name = pickup_loc.get("place_name", "Pickup Location")
+        if not pickup_coords: raise ValueError("Pickup location coordinates are missing!")
+
+        segments.append({"type": "PICKUP", "start_location": pickup_name, "end_location": pickup_name, "start_coordinates": pickup_coords, "end_coordinates": pickup_coords, "distance_miles": 0, "duration_hours": pickup_duration, "start_time": current_time, "end_time": pickup_end_time,})
+        current_time = pickup_end_time
+        current_pos_coords = pickup_coords # Update current position
+        current_pos_name = pickup_name
+        remaining_daily_duty -= pickup_duration
+        remaining_cycle -= pickup_duration
+        print(f"Finished PICKUP. New time: {current_time}. Pos: {current_pos_coords}")
+    else:
+        print("Warning: Did not fully reach pickup location in Leg 1 simulation.")
+
+
+    # --- Process Leg 2: Pickup to Dropoff ---
+    print("\n--- Processing Leg 2: Pickup to Dropoff ---")
+    target_pos_coords = dropoff_loc.get("coordinates")
+    target_pos_name = dropoff_loc.get("place_name", "Unknown Dropoff")
+    route_geom = pickup_to_dropoff_route.get("geometry")
+    total_route_distance = pickup_to_dropoff_route.get("distance_miles", 0)
+    distance_covered_on_leg = 0
+    # fuel_distance_since_last_stop carries over
+
+    leg = 2
+    loop_counter = 0 # Reset safety break counter
+    while distance_covered_on_leg < total_route_distance and loop_counter < max_loops:
+        loop_counter += 1
+        # --- PASTE THE FULL LOOP CONTENT (Steps 1-5) FROM LEG 1 HERE ---
+        # --- Ensure all variables (target_pos_*, route_geom, total_route_distance) use Leg 2's data ---
+        print(f"\nLeg {leg} - Loop {loop_counter}/{max_loops}:")
+        print(f"  Current Pos: '{current_pos_name}' ({current_pos_coords})")
+        print(f"  Target Pos: '{target_pos_name}' ({target_pos_coords})")
+        print(f"  Distance Covered: {distance_covered_on_leg:.1f} / Total: {total_route_distance:.1f}")
+        print(f"  HOS Remaining: Drive={remaining_daily_driving:.2f}, Duty={remaining_daily_duty:.2f}, Cycle={remaining_cycle:.2f}")
+        print(f"  Driving Since Break: {driving_hours_since_last_break:.2f}")
+        print(f"  Distance Since Fuel: {fuel_distance_since_last_stop:.1f}")
+
+        segment_start_time = current_time
+        segment_start_coords = list(current_pos_coords) if current_pos_coords else None # Copy coords
+        segment_start_name = current_pos_name
+
+        if remaining_daily_driving <= 0.01 or remaining_daily_duty <= 0.01 or remaining_cycle <= 0.01:
+            print("  Action: Taking 10-hour mandatory rest.")
+            rest_hours = REQUIRED_REST_HOURS; rest_end_time = current_time + datetime.timedelta(hours=rest_hours)
+            segments.append({"type": "REST", "start_location": segment_start_name, "end_location": segment_start_name,"start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords,"distance_miles": 0, "duration_hours": rest_hours, "start_time": segment_start_time, "end_time": rest_end_time,})
+            current_time = rest_end_time; remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY; remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY; driving_hours_since_last_break = 0
+            print(f"  Reset daily limits. New time: {current_time}"); continue
+
+        max_drive_hrs_before_30m_break = max(0, HOURS_BEFORE_BREAK - driving_hours_since_last_break)
+        drivable_hours = min(remaining_daily_driving, remaining_daily_duty, remaining_cycle, max_drive_hrs_before_30m_break)
+
+        if drivable_hours <= 0.01:
+             print("  Action: No driving time available before next limit/break.")
+             if max_drive_hrs_before_30m_break <= 0.01:
+                 print("  Action: Taking mandatory 30-min break."); break_hours = BREAK_DURATION_HOURS; break_end_time = current_time + datetime.timedelta(hours=break_hours)
+                 segments.append({"type": "REST", "start_location": segment_start_name, "end_location": segment_start_name, "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords, "distance_miles": 0, "duration_hours": break_hours, "start_time": segment_start_time, "end_time": break_end_time,})
+                 current_time = break_end_time; remaining_daily_duty -= break_hours; remaining_cycle -= break_hours; driving_hours_since_last_break = 0
+                 print(f"  Finished 30m break. New time: {current_time}"); continue
+             else:
+                 print("  Action: Taking 10-hour rest (fallback - should not be reached)."); rest_hours = REQUIRED_REST_HOURS; rest_end_time = current_time + datetime.timedelta(hours=rest_hours)
+                 segments.append({"type": "REST", "start_location": segment_start_name,"end_location": segment_start_name, "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords, "distance_miles": 0,"duration_hours": rest_hours,"start_time": segment_start_time,"end_time": rest_end_time})
+                 current_time = rest_end_time; remaining_daily_driving = MAX_DRIVING_HOURS_PER_DAY; remaining_daily_duty = MAX_ON_DUTY_HOURS_PER_DAY; driving_hours_since_last_break = 0
+                 continue
+
+        max_drivable_distance = drivable_hours * AVERAGE_SPEED_MPH
+        distance_remaining_on_leg = max(0, total_route_distance - distance_covered_on_leg)
+        distance_before_fuel_needed = max(0, MAX_MILES_BEFORE_FUEL - fuel_distance_since_last_stop)
+        potential_drive_dist = min(max_drivable_distance, distance_remaining_on_leg)
+        needs_fuel_before_limit = distance_before_fuel_needed < potential_drive_dist
+        distance_this_drive_segment = 0
+
+        if needs_fuel_before_limit:
+            distance_this_drive_segment = min(distance_before_fuel_needed, distance_remaining_on_leg)
+            print(f"  Action: Driving towards potential fuel stop ({distance_this_drive_segment:.1f} miles).")
+        else:
+            distance_this_drive_segment = potential_drive_dist
+            print(f"  Action: Driving towards target/HOS limit ({distance_this_drive_segment:.1f} miles).")
+
+        if distance_this_drive_segment <= 0.01:
+             print("  Warning: Calculated drive segment distance is negligible. Forcing 30m break to prevent potential loop.")
+             break_hours = BREAK_DURATION_HOURS; break_end_time = current_time + datetime.timedelta(hours=break_hours)
+             segments.append({"type": "REST", "start_location": segment_start_name,"end_location": segment_start_name, "start_coordinates": segment_start_coords, "end_coordinates": segment_start_coords, "distance_miles": 0, "duration_hours": break_hours, "start_time": segment_start_time, "end_time": break_end_time}); current_time = break_end_time; remaining_daily_duty -= break_hours; remaining_cycle -= break_hours; driving_hours_since_last_break = 0
+             continue
+
+        actual_drive_hours = distance_this_drive_segment / AVERAGE_SPEED_MPH if AVERAGE_SPEED_MPH > 0 else 0
+        drive_end_time = current_time + datetime.timedelta(hours=actual_drive_hours)
+        new_total_distance_covered = distance_covered_on_leg + distance_this_drive_segment
+        ratio_on_leg = new_total_distance_covered / total_route_distance if total_route_distance > 0 else 1.0
+        is_final_segment_of_leg = ratio_on_leg >= 1.0 - 1e-6
+
+        drive_end_coords = None
+        if is_final_segment_of_leg:
+            drive_end_coords = list(target_pos_coords) if target_pos_coords else None
+        else:
+            drive_end_coords_candidate = get_point_along_route(route_geom, ratio_on_leg)
+            if drive_end_coords_candidate: drive_end_coords = drive_end_coords_candidate
+            else: print(f"  Warning: Could not interpolate end coords for drive segment, using start coords as fallback."); drive_end_coords = list(segment_start_coords) if segment_start_coords else None
+
+        drive_end_name = target_pos_name if is_final_segment_of_leg else f"Point approx. {distance_this_drive_segment:.1f} miles driven towards {target_pos_name}"
+
+        segment_to_add = {"type": "DRIVE", "start_location": segment_start_name, "end_location": drive_end_name, "start_coordinates": segment_start_coords, "end_coordinates": drive_end_coords, "distance_miles": distance_this_drive_segment, "duration_hours": actual_drive_hours, "start_time": segment_start_time, "end_time": drive_end_time,}
+        print(f"  DEBUG: Appending DRIVE Segment - Start: {segment_to_add['start_coordinates']}, End: {segment_to_add['end_coordinates']}")
+        segments.append(segment_to_add)
+
+        current_time = drive_end_time; current_pos_coords = drive_end_coords; current_pos_name = drive_end_name; distance_covered_on_leg = new_total_distance_covered
+        remaining_daily_driving -= actual_drive_hours; remaining_daily_duty -= actual_drive_hours; remaining_cycle -= actual_drive_hours
+        driving_hours_since_last_break += actual_drive_hours; fuel_distance_since_last_stop += distance_this_drive_segment
+        print(f"  Drive segment finished. New Pos Coords: {current_pos_coords}")
+
+        if fuel_distance_since_last_stop >= MAX_MILES_BEFORE_FUEL - 0.1 and not is_final_segment_of_leg:
+            print("  Action: Taking fuel stop after drive segment."); fuel_hours = FUEL_STOP_DURATION_HOURS; fuel_end_time = current_time + datetime.timedelta(hours=fuel_hours)
+            segments.append({"type": "FUEL", "start_location": current_pos_name, "end_location": current_pos_name, "start_coordinates": current_pos_coords, "end_coordinates": current_pos_coords, "distance_miles": 0, "duration_hours": fuel_hours, "start_time": current_time, "end_time": fuel_end_time,})
+            current_time = fuel_end_time; remaining_daily_duty -= fuel_hours; remaining_cycle -= fuel_hours; fuel_distance_since_last_stop = 0
+            print(f"  Finished fuel stop. New time: {current_time}")
+
+        elif driving_hours_since_last_break >= HOURS_BEFORE_BREAK - 0.01 and not is_final_segment_of_leg:
+            print("  Action: Taking 30-min break after drive segment."); break_hours = BREAK_DURATION_HOURS; break_end_time = current_time + datetime.timedelta(hours=break_hours)
+            segments.append({"type": "REST", "start_location": current_pos_name, "end_location": current_pos_name, "start_coordinates": current_pos_coords, "end_coordinates": current_pos_coords, "distance_miles": 0, "duration_hours": break_hours, "start_time": current_time, "end_time": break_end_time,})
+            current_time = break_end_time; remaining_daily_duty -= break_hours; remaining_cycle -= break_hours; driving_hours_since_last_break = 0
+            print(f"  Finished 30m break. New time: {current_time}")
+
+    if loop_counter >= max_loops:
+        print(f"WARNING: Exceeded max loops ({max_loops}) in Leg {leg}. Route planning may be incomplete.")
+
+    # --- End of Leg 2 Loop ---
+    print(f"--- Finished Leg 2 (Pickup to Dropoff) ---")
+
+    # --- Add Dropoff Stop ---
+    if distance_covered_on_leg >= total_route_distance - 0.1: # Ensure we actually reached dropoff
+        print("Action: Adding DROPOFF stop.")
+        dropoff_duration = PICKUP_DROPOFF_DURATION_HOURS
+        dropoff_end_time = current_time + datetime.timedelta(hours=dropoff_duration)
+        # Ensure position is exactly at dropoff location
+        dropoff_coords = dropoff_loc.get("coordinates")
+        dropoff_name = dropoff_loc.get("place_name", "Dropoff Location")
+        if not dropoff_coords: raise ValueError("Dropoff location coordinates are missing!")
+
+        segments.append({"type": "DROPOFF", "start_location": dropoff_name, "end_location": dropoff_name, "start_coordinates": dropoff_coords, "end_coordinates": dropoff_coords, "distance_miles": 0, "duration_hours": dropoff_duration, "start_time": current_time, "end_time": dropoff_end_time,})
+        print(f"Finished DROPOFF. Final time: {dropoff_end_time}")
+    else:
+         print("Warning: Did not fully reach dropoff location in Leg 2 simulation.")
+
+
+    # Calculate final totals based on generated segments
+    total_dist = sum(s["distance_miles"] for s in segments if s["type"] == "DRIVE")
+    total_dur = (segments[-1]["end_time"] - segments[0]["start_time"]).total_seconds() / 3600 if segments else 0
+    print(f"\n{'='*10} Route Planning Complete {'='*10}")
+    print(f"Total Segments Generated: {len(segments)}")
+    print(f"Calculated Total Drive Distance: {total_dist:.1f} miles")
+    print(f"Calculated Total Trip Duration (Wall Clock): {total_dur:.2f} hours")
+
+    # Final check on segment coordinates before returning
+    for i, s in enumerate(segments):
+        if not s.get("start_coordinates") or not s.get("end_coordinates"):
+            print(f"WARNING: Final check found missing coordinates in segment {i} ({s.get('type')})!")
 
     return {
-        "segments": segments,
-        "route_geometries": route_geometries,
-        "total_distance": to_pickup_route["distance_miles"]
-        + pickup_to_dropoff_route["distance_miles"],
-        "total_duration": sum(segment["duration_hours"] for segment in segments),
+        "segments": segments, # Includes coordinates
+        "total_distance": total_dist,
+        "total_duration": total_dur,
     }
 
-
+# --- generate_eld_logs (Should be okay, keeping previous version with minor logging) ---
 def generate_eld_logs(trip, route_data):
-    """
-    Generate ELD logs based on the route segments.
-    Returns a dictionary mapping dates to ELD log data.
-    """
+    """Generate ELD logs based on the route segments."""
+    print("\n--- Generating ELD Logs ---")
     eld_logs = {}
+    if not route_data or not route_data.get("segments"):
+         print("DEBUG: No route segments found to generate ELD logs.")
+         return eld_logs
 
-    # Group segments by date
     for segment in route_data["segments"]:
-        start_date = segment["start_time"].date()
-        end_date = segment["end_time"].date()
+        start_dt_utc = segment["start_time"].astimezone(pytz.utc)
+        end_dt_utc = segment["end_time"].astimezone(pytz.utc)
+        local_tz = pytz.timezone('UTC') # Defaulting to UTC for simplicity
+        start_dt_local = start_dt_utc.astimezone(local_tz)
+        end_dt_local = end_dt_utc.astimezone(local_tz)
+        current_date_local = start_dt_local.date()
+        end_date_local = end_dt_local.date()
 
-        # Handle segments that span multiple days
-        current_date = start_date
-        while current_date <= end_date:
-            if current_date not in eld_logs:
-                eld_logs[current_date] = {
-                    "date": current_date.isoformat(),
-                    "status_timeline": [],
-                }
+        iter_date = current_date_local
+        while iter_date <= end_date_local:
+            date_str = iter_date.isoformat()
+            if date_str not in eld_logs:
+                eld_logs[date_str] = {"date": date_str, "status_timeline": []}
+            day_start_dt = datetime.datetime.combine(iter_date, datetime.time.min, tzinfo=local_tz)
+            day_end_dt = datetime.datetime.combine(iter_date, datetime.time.max, tzinfo=local_tz)
+            actual_start_dt = max(start_dt_local, day_start_dt)
+            actual_end_dt = min(end_dt_local, day_end_dt)
+            status_map = {"DRIVE": "D", "REST": "SB", "FUEL": "ON", "PICKUP": "ON", "DROPOFF": "ON", "START": "OFF"}
+            eld_status = status_map.get(segment["type"], "OFF")
 
-            # Get segment hours for this date
-            if current_date == start_date and current_date == end_date:
-                # Segment starts and ends on the same day
-                segment_start = segment["start_time"].time()
-                segment_end = segment["end_time"].time()
-            elif current_date == start_date:
-                # Segment starts on this day but ends on another
-                segment_start = segment["start_time"].time()
-                segment_end = datetime.time(23, 59, 59)
-            elif current_date == end_date:
-                # Segment ends on this day but started on another
-                segment_start = datetime.time(0, 0, 0)
-                segment_end = segment["end_time"].time()
-            else:
-                # Segment spans the entire day
-                segment_start = datetime.time(0, 0, 0)
-                segment_end = datetime.time(23, 59, 59)
+            eld_logs[date_str]["status_timeline"].append({
+                "status": eld_status,
+                "start_time": actual_start_dt.strftime("%H:%M"),
+                "end_time": "23:59" if actual_end_dt.time() == datetime.time.max else actual_end_dt.strftime("%H:%M"),
+                "location": segment["start_location"],
+                "notes": f"Segment Type: {segment['type']}"
+            })
+            iter_date += datetime.timedelta(days=1)
 
-            # Map segment type to ELD status
-            status_mapping = {
-                "DRIVE": "D",  # Driving
-                "REST": "SB",  # Sleeper Berth
-                "FUEL": "ON",  # On Duty Not Driving
-                "PICKUP": "ON",  # On Duty Not Driving
-                "DROPOFF": "ON",  # On Duty Not Driving
-            }
-
-            eld_logs[current_date]["status_timeline"].append(
-                {
-                    "status": status_mapping[segment["type"]],
-                    "start_time": segment_start.strftime("%H:%M"),
-                    "end_time": segment_end.strftime("%H:%M"),
-                    "location": segment["start_location"],
-                }
-            )
-
-            current_date += datetime.timedelta(days=1)
-
-    # For each day, fill in off-duty time for any gaps
-    for date, log in eld_logs.items():
-        timeline = log["status_timeline"]
-        timeline.sort(key=lambda x: x["start_time"])
-
-        # Fill in gaps with off-duty status
-        filled_timeline = []
-        current_time = datetime.time(0, 0)
-
-        for entry in timeline:
-            entry_start = datetime.datetime.strptime(
-                entry["start_time"], "%H:%M"
-            ).time()
-
-            # If there's a gap, fill it with off-duty
-            if entry_start > current_time:
-                filled_timeline.append(
-                    {
-                        "status": "OFF",  # Off Duty
-                        "start_time": current_time.strftime("%H:%M"),
-                        "end_time": entry["start_time"],
-                        "location": entry["location"],  # Use the same location
-                    }
-                )
-
+    for date_str, log in eld_logs.items():
+        log["status_timeline"].sort(key=lambda x: x["start_time"])
+        filled_timeline = []; last_end_time_str = "00:00"; last_location = "Start of Day"
+        for entry in log["status_timeline"]:
+            entry_start_time = datetime.datetime.strptime(entry["start_time"], "%H:%M").time()
+            last_end_time = datetime.datetime.strptime(last_end_time_str, "%H:%M").time()
+            if entry_start_time > last_end_time:
+                filled_timeline.append({"status": "OFF", "start_time": last_end_time_str, "end_time": entry["start_time"], "location": last_location, "notes": "Gap Fill"})
             filled_timeline.append(entry)
-            current_time = datetime.datetime.strptime(entry["end_time"], "%H:%M").time()
-
-        # Fill the end of the day if needed
-        day_end = datetime.time(23, 59)
-        if current_time < day_end:
-            filled_timeline.append(
-                {
-                    "status": "OFF",  # Off Duty
-                    "start_time": current_time.strftime("%H:%M"),
-                    "end_time": "23:59",
-                    "location": timeline[-1]["location"] if timeline else "Unknown",
-                }
-            )
-
+            last_end_time_str = entry["end_time"]; last_location = entry["location"]
+        if last_end_time_str != "23:59":
+             filled_timeline.append({"status": "OFF", "start_time": last_end_time_str, "end_time": "23:59", "location": last_location, "notes": "Gap Fill End of Day"})
         log["status_timeline"] = filled_timeline
 
-        # Calculate hours by duty status for the summary
-        hours_summary = {"D": 0, "ON": 0, "OFF": 0, "SB": 0}
-
+        hours_summary = {"D": 0.0, "ON": 0.0, "OFF": 0.0, "SB": 0.0}
         for entry in filled_timeline:
-            start_minutes = int(entry["start_time"].split(":")[0]) * 60 + int(
-                entry["start_time"].split(":")[1]
-            )
-            end_minutes = int(entry["end_time"].split(":")[0]) * 60 + int(
-                entry["end_time"].split(":")[1]
-            )
-            duration_hours = (end_minutes - start_minutes) / 60
-            hours_summary[entry["status"]] += duration_hours
+            t1 = datetime.datetime.strptime(entry["start_time"], "%H:%M")
+            t2_str = entry["end_time"]; t2 = datetime.datetime.strptime("23:59:59", "%H:%M:%S") if t2_str == "23:59" else datetime.datetime.strptime(t2_str, "%H:%M")
+            duration_seconds = (t2 - t1).total_seconds() + (1 if t2_str == "23:59" else 0)
+            duration_hours = max(0, duration_seconds) / 3600
+            status = entry["status"]; hours_summary[status] = hours_summary.get(status, 0.0) + duration_hours
+        log["hours_summary"] = {k: round(v, 2) for k, v in hours_summary.items()}
+        print(f"DEBUG: Generated ELD Log for {date_str}: {log['hours_summary']}")
 
-        log["hours_summary"] = hours_summary
-
+    print("--- Finished Generating ELD Logs ---")
     return eld_logs
