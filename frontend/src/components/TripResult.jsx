@@ -151,33 +151,58 @@ const drawLogSheetStructure = (doc, dateStr) => {
   // Adjust the overall margin to provide more space for labels
   // const margin = 20; // Increase this value (was likely 10 or 15)
 
-  // --- Grid Graph Section ---
   const gridStartY = y;
   const gridHeight = 40;
-  const rowHeight = gridHeight / 4;
+  const rowHeight = gridHeight / 4; // 10mm per row
   const totalHoursColWidth = 18;
   const gridWidth = contentWidth - totalHoursColWidth - 2;
   const gridEndX = margin + gridWidth;
   doc.setLineWidth(0.1);
   doc.rect(margin, gridStartY, gridWidth, gridHeight);
 
-  // Duty Status Labels - Modified for better visibility
+  // Duty Status Labels - Modified for visibility and multi-line
   const labels = [
     "1. Off Duty",
     "2. Sleeper Berth",
     "3. Driving",
-    "4. On Duty (not driving)",
+    ["4. On Duty", "(not driving)"], // Split the 4th label into an array
   ];
 
-  // Move labels much further left and increase spacing
-  const labelX = margin - 1; // Significantly increased space
-  doc.setFontSize(5); // Larger font size
-  doc.setFont(undefined, "bold"); // Make text bold for better visibility
+  // Adjust label position and font as needed
+  const labelX = margin - 1; // Your desired X position
+  doc.setFontSize(7); // Your desired font size
+  doc.setFont(undefined, "bold"); // Your desired font style
 
-  labels.forEach((label, i) => {
-    const labelY = gridStartY + rowHeight * i + rowHeight / 2 + 2;
-    // Use explicit right alignment with more space
-    doc.text(label, labelX, labelY, { align: "right", maxWidth: 50 });
+  // Define line spacing for the multi-line label (adjust as needed for 5pt font)
+  const multiLineSpacing = 2.5; // mm between lines
+
+  labels.forEach((labelInfo, i) => {
+    // Calculate the base Y position (center of the row)
+    // Let's adjust this slightly upwards for the multi-line case to center the block
+    let baseLabelY = gridStartY + rowHeight * i + rowHeight / 2;
+
+    if (i === 3 && Array.isArray(labelInfo)) {
+      // --- Handle the multi-line label (index 3) ---
+      const line1 = labelInfo[0];
+      const line2 = labelInfo[1];
+
+      // Adjust Y positions to center the two lines within the row
+      const y1 = baseLabelY + 1; // Position first line slightly above effective center
+      const y2 = y1 + multiLineSpacing; // Position second line below first
+
+      // Draw the first line
+      doc.text(line1, labelX, y1, { align: "right", maxWidth: 50 });
+      // Draw the second line
+      doc.text(line2, labelX, y2, { align: "right", maxWidth: 50 });
+    } else if (typeof labelInfo === "string") {
+      // --- Handle single-line labels ---
+      // Use the calculated center Y (adjusting offset for visual centering)
+      const singleLineY = baseLabelY + 2; // Your original offset for single lines
+      doc.text(labelInfo, labelX, singleLineY, {
+        align: "right",
+        maxWidth: 50,
+      });
+    }
 
     // Horizontal line separating rows
     if (i < 3) {
