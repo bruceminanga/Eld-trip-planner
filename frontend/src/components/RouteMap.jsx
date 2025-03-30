@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // --- IMPORTANT: Replace with YOUR Geoapify API key ---
-// --- Make sure 'Routing API' is enabled for this key in your Geoapify Project ---
+
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 
 // Segment type configuration for styling consistency
