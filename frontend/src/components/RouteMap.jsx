@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 // --- IMPORTANT: Replace with YOUR Geoapify API key ---
 // --- Make sure 'Routing API' is enabled for this key in your Geoapify Project ---
-const GEOAPIFY_API_KEY = "ec4b42ecfa9c4b53a239b7ff842e5990"; // <-- PUT YOUR KEY HERE
+const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 
 // Segment type configuration for styling consistency
 const SEGMENT_CONFIG = {

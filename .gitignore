@@ -1,1 +1,28 @@
-.env
+
+
+frontend/.env
+# Also ignore other potential env files, but allow examples
+.env.*
+!.env.example
+
+# Python / Django Backend
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/db.sqlite3 # If using SQLite for development
+backend/static_root/ # Collected static files if applicable
+backend/media_root/ # User-uploaded media if applicable
+backend/*.log
+
+# Node / React Frontend
+frontend/node_modules/
+frontend/dist/ # Or 'build/' if using Create React App
+frontend/coverage/
+frontend/*.log
+frontend/.DS_Store # macOS specific
+
+# IDE / OS specific files (Optional but recommended)
+.vscode/
+.idea/
+*.swp
+*~
