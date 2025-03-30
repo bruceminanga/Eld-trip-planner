@@ -116,13 +116,12 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 4.  **Set up environment variables:**
     - Create a `.env` file in the `backend` directory.
     - Add your Geoapify API key (See [Geoapify API Key](#geoapify-api-key) section below):
+
       ```dotenv
       # .env
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
       SECRET_KEY=your_strong_django_secret_key
-      # Optional: Add Database URL if using PostgreSQL, Secret Key, Debug settings
-      # DATABASE_URL=postgres://user:password@host:port/dbname
-      # DEBUG=True
+
       ```
 5.  **Run database migrations:**
     ```bash
