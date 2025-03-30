@@ -114,15 +114,23 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
     pip install -r requirements.txt
     ```
 4.  **Set up environment variables:**
-    - Create a `.env` file in the `backend` directory.
+
+    - Create a `.env` file in the `frontend` directory.
     - Add your Geoapify API key (See [Geoapify API Key](#geoapify-api-key) section below):
 
       ```dotenv
       # .env
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
+      ```
+
+    - Create .env file to the root directory and put the following:
       SECRET_KEY=your_strong_django_secret_key
+      GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
 
       ```
+
+      ```
+
 5.  **Run database migrations:**
     ```bash
     python manage.py migrate
