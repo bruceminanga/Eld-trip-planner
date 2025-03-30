@@ -1,7 +1,5 @@
 # ELD Compliant Trip Planner
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 A full-stack web application built with Django and React that helps truck drivers plan routes while considering Hours of Service (HOS) regulations and generates predicted Electronic Logging Device (ELD) log sheets.
 
 **[Link to Live Demo]** (Replace with your Vercel/deployment link if available)
@@ -13,7 +11,6 @@ A full-stack web application built with Django and React that helps truck driver
 - [Overview](#overview)
 - [Features](#features)
 - [Technology Stack](#technology-stack)
-- [Screenshots](#screenshots)
 - [Setup and Installation](#setup-and-installation)
   - [Prerequisites](#prerequisites)
   - [Backend (Django)](#backend-django)
@@ -22,9 +19,6 @@ A full-stack web application built with Django and React that helps truck driver
 - [Usage](#usage)
 - [Export Formats](#export-formats)
 - [Deployment](#deployment)
-- [Future Improvements](#future-improvements)
-- [License](#license)
-- [Contact](#contact)
 
 ---
 
@@ -85,23 +79,6 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 - **Database:**
   - PostgreSQL (Recommended for production)
   - SQLite (Default for development)
-
----
-
-## Screenshots
-
-_Include screenshots of your application here._
-
-- **Trip Planner Input Form:**
-  `[Insert Screenshot of TripPlanner.jsx]`
-- **Result - Route Map Tab:**
-  `[Insert Screenshot of RouteMap Tab]`
-- **Result - Trip Segments Tab:**
-  `[Insert Screenshot of Trip Segments Tab]`
-- **Result - ELD Logs Tab (Viewer):**
-  `[Insert Screenshot of ELD Log Viewer Tab]`
-- **Exported PDF Example:**
-  `[Insert Screenshot of Generated PDF Log Sheet]`
 
 ---
 
@@ -209,16 +186,3 @@ This application relies heavily on Geoapify for mapping, geocoding, and routing.
     - **Trip Segments:** See the detailed list of planned driving, rest, pickup, etc., segments.
     - **ELD Logs:** View the generated ELD log data, including the timeline graph and summary. Use the date tabs (if the trip spans multiple days) to view specific logs.
 9.  Use the "Export" buttons in the header to download the trip data in JSON, CSV, or PDF (Log Sheet) format.
-
----
-
-## Deployment
-
-- **Backend (Django):** Can be deployed to platforms like Heroku, Render, PythonAnywhere, or a traditional VPS. Ensure environment variables (especially `GEOAPIFY_API_KEY`, `SECRET_KEY`, `DATABASE_URL`, `DEBUG=False`) are set correctly on the deployment server. You may need to configure `ALLOWED_HOSTS` in `settings.py`.
-- **Frontend (React):** Can be deployed as a static site to platforms like Vercel, Netlify, GitHub Pages, etc.
-  - Run `npm run build` (or `yarn build`) to create a production build.
-  - Configure environment variables on the hosting platform if your frontend needs the backend URL (e.g., `VITE_API_BASE_URL`).
-  - Set up server-side routing or rewrite rules if using `react-router-dom` in `BrowserRouter` mode to handle page reloads correctly.
-  - If deploying frontend and backend separately, configure CORS (Cross-Origin Resource Sharing) on the Django backend (using `django-cors-headers`) to allow requests from your frontend domain.
-
----
