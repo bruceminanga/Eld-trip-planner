@@ -136,7 +136,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 
 1.  **Navigate to the frontend directory:**
     ```bash
-    cd ../frontend
+    cd frontend
     ```
 2.  **Install dependencies:**
     ```bash
@@ -152,7 +152,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
     # or (if using Create React App)
     # npm start / yarn start
     ```
-    The frontend should now be running, typically at `http://localhost:5173/` (for Vite) or `http://localhost:3000/` (for CRA).
+    The frontend should now be running, typically at `http://localhost:5173/` (for Vite)
 
 ### Geoapify API Key
 
