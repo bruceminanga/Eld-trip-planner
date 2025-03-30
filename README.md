@@ -89,6 +89,8 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 - Python (3.8+ recommended)
 - Node.js and npm (or yarn)
 - Git
+- React 19
+- Django 4
 
 ### Backend (Django)
 
@@ -117,9 +119,9 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
       ```dotenv
       # .env
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
+      SECRET_KEY=your_strong_django_secret_key
       # Optional: Add Database URL if using PostgreSQL, Secret Key, Debug settings
       # DATABASE_URL=postgres://user:password@host:port/dbname
-      # SECRET_KEY=your_strong_django_secret_key
       # DEBUG=True
       ```
 5.  **Run database migrations:**
