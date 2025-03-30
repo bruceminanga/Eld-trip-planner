@@ -93,10 +93,12 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 ### Backend (Django)
 
 1.  **Clone the repository:**
+
     ```bash
-    git clone <your-repository-url>
-    cd <your-repository-name>/backend # Or your backend folder name
+    git clone git@github.com:bruceminanga/Eld-trip-planner.git
+
     ```
+
 2.  **Create and activate a virtual environment:**
     ```bash
     python -m venv venv
@@ -134,7 +136,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 
 1.  **Navigate to the frontend directory:**
     ```bash
-    cd ../frontend # Or your frontend folder name (from the repository root)
+    cd ../frontend
     ```
 2.  **Install dependencies:**
     ```bash
@@ -142,16 +144,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
     # or
     yarn install
     ```
-3.  **Environment Variables (Optional but Recommended):**
-    - If your frontend needs to know the backend API URL explicitly (especially for production builds), create a `.env` file in the `frontend` directory:
-      ```dotenv
-      # .env (for Vite)
-      VITE_API_BASE_URL=http://127.0.0.1:8000
-      # .env (for Create React App)
-      # REACT_APP_API_BASE_URL=http://127.0.0.1:8000
-      ```
-    - _Note:_ The current setup likely uses Vite's proxy feature (in `vite.config.js`) or CRA's proxy (in `package.json`) to forward `/api` requests to the backend during development, so a frontend `.env` might not be strictly necessary for local development if the proxy is configured. Adjust based on your setup.
-4.  **Start the React development server:**
+3.  **Start the React development server:**
     ```bash
     npm run dev
     # or
