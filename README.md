@@ -2,7 +2,9 @@
 
 A full-stack web application built with Django and React that helps truck drivers plan routes while considering Hours of Service (HOS) regulations and generates predicted Electronic Logging Device (ELD) log sheets.
 
-**[Link to Live Demo]** (Replace with your Vercel/deployment link if available)
+## Demo
+
+<video controls src="ELD.mp4" title="Title"></video>
 
 ---
 
@@ -17,8 +19,6 @@ A full-stack web application built with Django and React that helps truck driver
   - [Frontend (React)](#frontend-react)
   - [Geoapify API Key](#geoapify-api-key)
 - [Usage](#usage)
-- [Export Formats](#export-formats)
-- [Deployment](#deployment)
 
 ---
 
