@@ -124,7 +124,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
       ```
 
     - Create .env file to the root directory and put the following:
-      SECRET_KEY=your_strong_django_secret_key
+      SECRET_KEY=your_strong_django_secret_key and
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
 
 5.  **Run database migrations:**
