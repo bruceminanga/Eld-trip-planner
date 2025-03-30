@@ -130,7 +130,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 
       ```
 
-      ```
+
 
 5.  **Run database migrations:**
     ```bash
