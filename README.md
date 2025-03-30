@@ -123,6 +123,7 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
       ```
 
+````
     - Create .env file to the root directory and put the following:
       SECRET_KEY=your_strong_django_secret_key
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
@@ -188,3 +189,4 @@ This application relies heavily on Geoapify for mapping, geocoding, and routing.
     - **Trip Segments:** See the detailed list of planned driving, rest, pickup, etc., segments.
     - **ELD Logs:** View the generated ELD log data, including the timeline graph and summary. Use the date tabs (if the trip spans multiple days) to view specific logs.
 9.  Use the "Export" buttons in the header to download the trip data in JSON, CSV, or PDF (Log Sheet) format.
+````
