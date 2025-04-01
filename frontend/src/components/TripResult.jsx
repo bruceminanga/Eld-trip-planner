@@ -21,7 +21,7 @@ import {
   ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
 
-const API_BASE_URL = "/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // --- PDF Generation Helper Functions ---
 
