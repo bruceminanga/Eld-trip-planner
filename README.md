@@ -1,11 +1,11 @@
-# ELD Compliant Trip Planner
+# 🚚 ELD Compliant Trip Planner
 
-A full-stack web application built with Django and React that helps truck drivers plan routes while considering Hours of Service (HOS) regulations and generates predicted Electronic Logging Device (ELD) log sheets.
+A full-stack web application built with Django and React that helps truck drivers plan routes while maintaining Hours of Service (HOS) compliance and automatically generates Electronic Logging Device (ELD) logs.
 
 ## Demo
 
-First, click this link to access backend: https://eld-trip-planner-0e76.onrender.com/api/trips/
-Then click this for frontend: https://frontend-nine-sepia-71.vercel.app
+First, click this link to view the backend: https://eld-trip-planner-0e76.onrender.com/api/trips/
+Then click this for frontend view: https://frontend-nine-sepia-71.vercel.app. Please go in that order(by clicking backend link, then frontend link)
 
 ---
 
@@ -23,19 +23,15 @@ Then click this for frontend: https://frontend-nine-sepia-71.vercel.app
 
 ---
 
-## Overview
+## 📋 Overview
 
-Planning trucking routes manually while ensuring compliance with complex Hours of Service (HOS) rules can be time-consuming and error-prone. This application automates the process by:
+Planning trucking routes while ensuring compliance with complex Hours of Service (HOS) regulations can be time-consuming and error-prone. This application automates the process by:
 
-1.  Taking basic trip details (start, pickup, dropoff locations) and the driver's current HOS status (70-hour cycle usage).
-2.  Calculating an estimated driving route using the Geoapify API.
-3.  Simulating the trip according to specified HOS rules (daily driving limits, required breaks, fuel stops).
-4.  Generating a detailed list of trip segments (Driving, Rest, Pickup, Dropoff, Fuel).
-5.  Creating predicted daily ELD log data based on the planned segments.
-6.  Displaying the route, segments, and ELD logs in a user-friendly interface.
-7.  Allowing users to export the trip plan and log sheets in various formats.
-
-This project aims to provide drivers and dispatchers with a tool for proactive compliance planning.
+1. Converting basic trip inputs into detailed, regulation-compliant route plans
+2. Simulating trips according to federal HOS rules
+3. Generating predicted ELD logs for proactive compliance planning
+4. Visualizing routes, segments, and logs in an intuitive interface
+5. Supporting multi-format exports for documentation needs
 
 ---
 
@@ -78,7 +74,6 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
 - **APIs:**
   - Geoapify (Geocoding API, Routing API, Map Tiles)
 - **Database:**
-  - PostgreSQL (Recommended for production)
   - SQLite (Default for development)
 
 ---
@@ -124,9 +119,10 @@ This project aims to provide drivers and dispatchers with a tool for proactive c
       GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
       ```
 
-    - Create .env file to the root directory and put the following:
-      SECRET_KEY=your_strong_django_secret_key and
-      GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
+    - Create .env file to the fronend directory and put the following:
+
+      VITE_GEOAPIFY_API_KEY=YOUR_ACTUAL_GEOAPIFY_KEY
+      VITE_API_BASE_URL="https://eld-trip-planner-0e76.onrender.com/api"
 
 5.  **Run database migrations:**
     ```bash
