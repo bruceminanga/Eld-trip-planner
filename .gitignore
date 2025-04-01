@@ -26,3 +26,4 @@ frontend/.DS_Store # macOS specific
 .idea/
 *.swp
 *~
+.vercel
