@@ -60,8 +60,11 @@ MIDDLEWARE = [
 
 # Allow requests from frontend
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "https://your-frontend-domain.vercel.app",
+    "https://frontend-nine-sepia-71.vercel.app",  # The specific Vercel URL you are testing
+    # Add your PRODUCTION Vercel URL here too when you have one (e.g., https://your-app.vercel.app)
+    # Add any other preview URL patterns if needed, or use CORS_ALLOWED_ORIGIN_REGEXES
+    "http://localhost:5173",  # If you run your React dev server locally on this port
+    "http://127.0.0.1:5173",  # Also good practice for local dev
 ]
 
 # Rest Framework settings
