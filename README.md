@@ -5,7 +5,7 @@ A full-stack web application built with Django and React that helps truck driver
 ## Demo
 
 First, click this link to view the backend: https://eld-trip-planner-0e76.onrender.com/api/trips/
-Then click this for frontend view: https://frontend-nine-sepia-71.vercel.app. Please go in that order(by clicking backend link, then frontend link)
+Then click this for frontend view: https://frontend-nine-sepia-71.vercel.app. Please go in that order(by clicking backend link, then frontend link). After that, you can have fun testing the project. (Make sure the backend is not idle)
 
 ---
 
