@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Get base URL from environment variable or default to "/api" for local development
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
+console.log("!!! Using API Base URL:", API_BASE_URL);
 export const tripService = {
   createTrip: async (tripData) => {
     try {
