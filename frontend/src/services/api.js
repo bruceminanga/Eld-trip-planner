@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Get base URL from environment variable or default to "/api" for local development
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = "https://eld-trip-planner-0e76.onrender.com/api";
 
 // Add this line at the top level to see if the module is being loaded
 console.error("🔴 tripService module loaded, API_BASE_URL:", API_BASE_URL);
