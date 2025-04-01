@@ -269,15 +269,17 @@ const TripPlanner = () => {
                 )}
               </div>
 
+              {/* Enhanced Current Cycle Used Field */}
               <div>
                 <label
                   htmlFor="current_cycle_used"
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2"
                 >
                   <ClockIcon />
                   Current Cycle Used
                 </label>
-                <div className="relative mt-1 rounded-lg shadow-sm">
+
+                <div className="relative rounded-xl overflow-hidden shadow-sm border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
                   <input
                     id="current_cycle_used"
                     name="current_cycle_used"
@@ -288,23 +290,41 @@ const TripPlanner = () => {
                     max="70"
                     step="0.5"
                     placeholder="Hours used in current cycle"
-                    className={`w-full px-4 py-3 pr-12 border ${
-                      errors.current_cycle_used
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200`}
+                    className="block w-full py-3 pl-4 pr-16 text-gray-700 border-0 focus:outline-none focus:ring-0 rounded-xl"
                   />
-                  <div className="absolute inset-y-0 right-0 flex items-center">
-                    <span className="px-4 text-gray-500 font-medium">
-                      hours
-                    </span>
+                  <div className="absolute inset-y-0 right-0 flex items-center justify-center px-4 bg-gray-50 border-l border-gray-200">
+                    <span className="text-gray-500 font-medium">hours</span>
                   </div>
                 </div>
+
                 {errors.current_cycle_used && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-2 text-sm text-red-600">
                     {errors.current_cycle_used}
                   </p>
                 )}
+
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                  <span>Min: 0h</span>
+                  <div className="w-full mx-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${
+                        parseFloat(formData.current_cycle_used || 0) > 60
+                          ? "bg-red-400"
+                          : parseFloat(formData.current_cycle_used || 0) > 40
+                          ? "bg-yellow-400"
+                          : "bg-green-400"
+                      }`}
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (parseFloat(formData.current_cycle_used || 0) / 70) *
+                            100
+                        )}%`,
+                      }}
+                    ></div>
+                  </div>
+                  <span>Max: 70h</span>
+                </div>
               </div>
 
               <button
