@@ -1,16 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import dotenv from "dotenv";
 import tailwindcss from "@tailwindcss/vite";
-
-// Load environment variables
-dotenv.config();
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  define: {
-    "process.env": process.env,
-  },
+  // Remove the define section completely - Vite handles env vars automatically
   resolve: {
     alias: {
       "@": "/src",
@@ -20,7 +14,6 @@ export default defineConfig({
       "@styles": "/src/styles",
     },
   },
-
   build: {
     commonjsOptions: {
       include: [/node_modules/],
