@@ -1,0 +1,15 @@
+# kubernetes/base/postgres-service.yml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: eld-trip-planner
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

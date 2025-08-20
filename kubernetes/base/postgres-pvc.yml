@@ -1,0 +1,13 @@
+# kubernetes/base/postgres-pvc.yml
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: eld-trip-planner
+spec:
+  accessModes:
+    - ReadWriteOnce # This volume can be mounted as read-write by a single pod at a time
+  resources:
+    requests:
+      storage: 1Gi # Request 1 Gibibyte of storage

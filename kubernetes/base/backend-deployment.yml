@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: eld-trip-planner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          # IMPORTANT: Use the image name you just built
+          image: bruceminanga/eld-trip-planner-backend:0.3
+          # THIS IS THE KEY CHANGE FOR MINIKUBE
+          # It tells K8s to use the local image we built, not pull from Docker Hub.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret

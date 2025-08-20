@@ -1,0 +1,15 @@
+# kubernetes/base/backend-service.yml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: eld-trip-planner
+spec:
+  type: ClusterIP # This service is only accessible from WITHIN the Kubernetes cluster
+  selector:
+    app: backend # This connects the Service to Pods with the label 'app: backend'
+  ports:
+    - protocol: TCP
+      port: 8000 # The port the Service will be available on
+      targetPort: 8000 # The port on the Pods to send traffic to

@@ -1,0 +1,21 @@
+# kubernetes/base/configmap.yml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: eld-trip-planner
+data:
+  # General Django Settings
+  DEBUG: "True"
+  DJANGO_ALLOWED_HOSTS: "backend,localhost,127.0.0.1" # Added 'backend' for service-to-service communication
+
+  # Database Settings
+  # WARNING: Storing passwords in a ConfigMap is NOT secure and is for local dev ONLY.
+  # We will replace these with a Secret in a later step.
+  POSTGRES_DB: "trip_planner_db"
+  POSTGRES_USER: "trip_planner_user"
+  POSTGRES_PASSWORD: "supersecretpassword"
+  DB_HOST: "postgres" # This is the name of the Kubernetes Service for our database
+  DB_PORT: "5432"
+  DATABASE_URL: "postgres://trip_planner_user:supersecretpassword@postgres:5432/trip_planner_db"

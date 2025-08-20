@@ -1,0 +1,39 @@
+# kubernetes/base/postgres-statefulset.yml
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: eld-trip-planner
+spec:
+  serviceName: "postgres" # The name of the Service that governs this StatefulSet
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine # Using a specific, lightweight version
+          ports:
+            - containerPort: 5432
+          envFrom:
+            # We can reuse the same ConfigMap we created for the backend to get DB credentials
+            - configMapRef:
+                name: backend-config
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data # Mount the persistent storage here
+  # This section links the StatefulSet to the PersistentVolumeClaim
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

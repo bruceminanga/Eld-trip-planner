@@ -44,14 +44,18 @@ COPY . .
 
 # Run collectstatic AS ROOT with all necessary dummy variables
 # This ensures it has permissions to write to STATIC_ROOT
-RUN SECRET_KEY=dummy-for-build \
-    DEBUG=0 \
-    SQL_ENGINE=django.db.backends.sqlite3 \
-    SQL_DATABASE=/tmp/dummy.db \
-    SQL_USER=dummy \
-    SQL_PASSWORD=dummy \
-    SQL_HOST=dummy \
-    SQL_PORT=1234 \
+# RUN SECRET_KEY=dummy-for-build \
+#     DEBUG=0 \
+#     SQL_ENGINE=django.db.backends.sqlite3 \
+#     SQL_DATABASE=/tmp/dummy.db \
+#     SQL_USER=dummy \
+#     SQL_PASSWORD=dummy \
+#     SQL_HOST=dummy \
+#     SQL_PORT=1234 \
+#     python manage.py collectstatic --noinput
+
+RUN SECRET_KEY=dummy-for-build-does-not-matter \
+    DATABASE_URL=sqlite:///dummy-for-build.db \
     python manage.py collectstatic --noinput
 
 # Change ownership of the entire app directory to the non-root user
