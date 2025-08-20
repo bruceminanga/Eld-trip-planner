@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import axios from "axios";
+// import axios from "axios"; // REMOVED - We now use the centralized service
+import { tripService } from "../services/api"; // ADDED - Centralized API service
 import RouteMap from "./RouteMap";
 import ELDLogViewer from "./ELDLogViewer";
 
 // --- PDF Generation Imports ---
 import jsPDF from "jspdf";
-// import autoTable from 'jspdf-autotable'; // Not needed for log sheet
 
 import {
   MapIcon,
@@ -21,10 +21,11 @@ import {
   ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// REMOVED - This was the source of the error
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // --- PDF Generation Helper Functions ---
-
+// ... (All your PDF helper functions like timeToMinutes, drawLogSheetStructure, etc. remain unchanged) ...
 const timeToMinutes = (timeString = "00:00") => {
   /* ... same ... */ try {
     const [hours, minutes] = timeString.split(":").map(Number);
@@ -35,16 +36,12 @@ const timeToMinutes = (timeString = "00:00") => {
     return 0;
   }
 };
-
-// Draw the static log sheet structure - REFINED VERSION
 const drawLogSheetStructure = (doc, dateStr) => {
   const pageHeight = doc.internal.pageSize.height; // mm
   const pageWidth = doc.internal.pageSize.width; // mm - Letter approx 215.9
   const margin = 20; // mm
   const contentWidth = pageWidth - 2 * margin; // Available width
   let y = margin;
-
-  // --- Header Section ---
   doc.setFontSize(14);
   doc.setFont(undefined, "bold");
   doc.text("Driver's Daily Log", pageWidth / 2, y, { align: "center" });
@@ -53,8 +50,6 @@ const drawLogSheetStructure = (doc, dateStr) => {
   doc.setFont(undefined, "normal");
   doc.text("(24 hours)", pageWidth / 2, y, { align: "center" });
   y += 6;
-
-  // Date Fields - Adjusted spacing
   const dateFieldStartX = margin + 12;
   const dateParts = dateStr ? dateStr.split("-") : ["____", "__", "__"];
   const month = dateParts[1] || "__";
@@ -74,8 +69,6 @@ const drawLogSheetStructure = (doc, dateStr) => {
   doc.text("(day)", dateFieldStartX + 12, y + 3);
   doc.text("(year)", dateFieldStartX + 21, y + 3);
   doc.setFontSize(9);
-
-  // Original/Duplicate Text - Positioned carefully
   const originDupX = pageWidth - margin - 68;
   doc.setFontSize(7);
   doc.text("Original - File at home terminal.", originDupX, y - 4);
@@ -86,8 +79,6 @@ const drawLogSheetStructure = (doc, dateStr) => {
   );
   doc.setFontSize(9);
   y += 6;
-
-  // From / To - Balanced spacing
   const fromToWidth = (contentWidth - 10) / 2; // Divide remaining width
   doc.text("From:", margin, y);
   doc.line(margin + 12, y + 1, margin + 12 + fromToWidth, y + 1);
@@ -99,8 +90,6 @@ const drawLogSheetStructure = (doc, dateStr) => {
     y + 1
   );
   y += 7;
-
-  // Mileage Boxes - Adjusted spacing
   const mileageBoxWidth = 45;
   const mileageBoxHeight = 8;
   doc.rect(margin, y, mileageBoxWidth, mileageBoxHeight);
@@ -114,11 +103,10 @@ const drawLogSheetStructure = (doc, dateStr) => {
     y + 5,
     { align: "center" }
   );
-  // Carrier Info Area - Aligned with mileage boxes
-  const carrierY = y; // Align top of text with top of boxes
+  const carrierY = y;
   const carrierX = margin + mileageBoxWidth * 2 + 15;
   const carrierLineWidth = pageWidth - margin - carrierX;
-  doc.text("Name of Carrier or Carriers:", carrierX, carrierY + 3); // Lower text slightly
+  doc.text("Name of Carrier or Carriers:", carrierX, carrierY + 3);
   doc.line(
     carrierX + 45,
     carrierY + 1,
@@ -139,72 +127,45 @@ const drawLogSheetStructure = (doc, dateStr) => {
     carrierX + carrierLineWidth,
     carrierY + 14
   );
-  y += mileageBoxHeight + 2; // Space below boxes
-
-  // Truck/Trailer Box
+  y += mileageBoxHeight + 2;
   doc.text("Truck/Tractor and Trailer Numbers or", margin, y);
   doc.text("License Plate(s)/State (show each unit)", margin, y + 4);
-  doc.rect(margin, y + 6, 90, 10); // Slightly wider box
-  y += 18; // Space before grid
-
-  // --- Grid Graph Section ---
-  // Adjust the overall margin to provide more space for labels
-  // const margin = 20; // Increase this value (was likely 10 or 15)
-
+  doc.rect(margin, y + 6, 90, 10);
+  y += 18;
   const gridStartY = y;
   const gridHeight = 40;
-  const rowHeight = gridHeight / 4; // 10mm per row
+  const rowHeight = gridHeight / 4;
   const totalHoursColWidth = 18;
   const gridWidth = contentWidth - totalHoursColWidth - 2;
   const gridEndX = margin + gridWidth;
   doc.setLineWidth(0.1);
   doc.rect(margin, gridStartY, gridWidth, gridHeight);
-
-  // Duty Status Labels - Modified for visibility and multi-line
   const labels = [
     "1. Off Duty",
     "2. Sleeper Berth",
     "3. Driving",
-    ["4. On Duty", "(not driving)"], // Split the 4th label into an array
+    ["4. On Duty", "(not driving)"],
   ];
-
-  // Adjust label position and font as needed
-  const labelX = margin - 1; // Your desired X position
-  doc.setFontSize(7); // Your desired font size
-  doc.setFont(undefined, "bold"); // Your desired font style
-
-  // Define line spacing for the multi-line label (adjust as needed for 5pt font)
-  const multiLineSpacing = 2.5; // mm between lines
-
+  const labelX = margin - 1;
+  doc.setFontSize(7);
+  doc.setFont(undefined, "bold");
+  const multiLineSpacing = 2.5;
   labels.forEach((labelInfo, i) => {
-    // Calculate the base Y position (center of the row)
-    // Let's adjust this slightly upwards for the multi-line case to center the block
     let baseLabelY = gridStartY + rowHeight * i + rowHeight / 2;
-
     if (i === 3 && Array.isArray(labelInfo)) {
-      // --- Handle the multi-line label (index 3) ---
       const line1 = labelInfo[0];
       const line2 = labelInfo[1];
-
-      // Adjust Y positions to center the two lines within the row
-      const y1 = baseLabelY + 1; // Position first line slightly above effective center
-      const y2 = y1 + multiLineSpacing; // Position second line below first
-
-      // Draw the first line
+      const y1 = baseLabelY + 1;
+      const y2 = y1 + multiLineSpacing;
       doc.text(line1, labelX, y1, { align: "right", maxWidth: 50 });
-      // Draw the second line
       doc.text(line2, labelX, y2, { align: "right", maxWidth: 50 });
     } else if (typeof labelInfo === "string") {
-      // --- Handle single-line labels ---
-      // Use the calculated center Y (adjusting offset for visual centering)
-      const singleLineY = baseLabelY + 2; // Your original offset for single lines
+      const singleLineY = baseLabelY + 2;
       doc.text(labelInfo, labelX, singleLineY, {
         align: "right",
         maxWidth: 50,
       });
     }
-
-    // Horizontal line separating rows
     if (i < 3) {
       doc.line(
         margin,
@@ -214,52 +175,38 @@ const drawLogSheetStructure = (doc, dateStr) => {
       );
     }
   });
-  // --- END REPLACEMENT (Option 1) ---
-
-  // Time Labels and Vertical Grid Lines
   const hourWidth = gridWidth / 24;
-  doc.setFontSize(7); // Reset font size for time labels (VERY important!)
-  const gridHeaderY = gridStartY - 4; // Position time labels above grid
-  doc.line(margin, gridStartY, gridEndX, gridStartY); // Top line of the grid box itself
-
+  doc.setFontSize(7);
+  const gridHeaderY = gridStartY - 4;
+  doc.line(margin, gridStartY, gridEndX, gridStartY);
   for (let hour = 0; hour <= 24; hour++) {
     const x = margin + hour * hourWidth;
-    const isMajorHour = hour % 3 === 0 || hour === 12 || hour === 24; // Include Mid at end
+    const isMajorHour = hour % 3 === 0 || hour === 12 || hour === 24;
     const lineYEnd = gridStartY + gridHeight;
-
-    // Main vertical hour line
-    doc.setLineWidth(isMajorHour ? 0.2 : 0.1); // Slightly thicker major lines
-    doc.setLineDashPattern(isMajorHour ? [] : [0.5, 0.5], 0); // Dashed for minor hours
-    doc.line(x, gridStartY, x, lineYEnd); // Grid lines from top to bottom
-
-    // Hour Labels (Mid, Noon, 3, 6, 9) - Centered OVER the line
+    doc.setLineWidth(isMajorHour ? 0.2 : 0.1);
+    doc.setLineDashPattern(isMajorHour ? [] : [0.5, 0.5], 0);
+    doc.line(x, gridStartY, x, lineYEnd);
     let label = "";
     if (hour === 0 || hour === 24) label = "Mid";
     else if (hour === 12) label = "Noon";
     else if (isMajorHour) label = hour % 12 === 0 ? 12 : hour % 12;
-
     if (label !== "") {
       doc.text(String(label), x, gridHeaderY, { align: "center" });
     }
-
-    // Quarter hour ticks within the grid rows
     if (hour < 24) {
       doc.setLineWidth(0.1);
       doc.setLineDashPattern([0.5, 0.5], 0);
       for (let q = 1; q <= 3; q++) {
         const qx = x + q * (hourWidth / 4);
         for (let r = 0; r < 4; r++) {
-          // Draw ticks in each row
           const rowY = gridStartY + rowHeight * r;
-          doc.line(qx, rowY + rowHeight - 1.5, qx, rowY + rowHeight); // Short tick up
+          doc.line(qx, rowY + rowHeight - 1.5, qx, rowY + rowHeight);
         }
       }
     }
   }
-  doc.setLineDashPattern([], 0); // Reset line dash
-  doc.setLineWidth(0.2); // Reset line width
-
-  // Total Hours Section (Labels & Box)
+  doc.setLineDashPattern([], 0);
+  doc.setLineWidth(0.2);
   const totalX = gridEndX + 2;
   doc.setFontSize(7);
   doc.text("Total", totalX + totalHoursColWidth / 2, gridHeaderY, {
@@ -268,13 +215,11 @@ const drawLogSheetStructure = (doc, dateStr) => {
   doc.text("Hours", totalX + totalHoursColWidth / 2, gridHeaderY + 3, {
     align: "center",
   });
-  doc.rect(totalX, gridStartY, totalHoursColWidth, gridHeight); // Box for totals
-  // Lines for total hours per row - Centered vertically within row space
+  doc.rect(totalX, gridStartY, totalHoursColWidth, gridHeight);
   for (let i = 0; i < 4; i++) {
-    const lineY = gridStartY + rowHeight * i + rowHeight / 2 + 1; // Centered Y
+    const lineY = gridStartY + rowHeight * i + rowHeight / 2 + 1;
     doc.line(totalX, lineY, totalX + totalHoursColWidth, lineY);
   }
-  // Line for overall total (Thicker)
   doc.setLineWidth(0.4);
   doc.line(
     totalX,
@@ -283,18 +228,14 @@ const drawLogSheetStructure = (doc, dateStr) => {
     gridStartY + gridHeight + 1
   );
   doc.setLineWidth(0.2);
-
-  // --- Remarks Section ---
-  y = gridStartY + gridHeight + 6; // More space below grid
+  y = gridStartY + gridHeight + 6;
   doc.setFontSize(10);
   doc.text("Remarks", margin, y);
-  const remarksHeight = 25; // Reduced height slightly
+  const remarksHeight = 25;
   doc.rect(margin, y + 2, contentWidth, remarksHeight);
   y += remarksHeight + 4;
-
-  // --- Shipping Docs / Location Section ---
   doc.setFontSize(9);
-  const shipX = margin + 95; // Defined X for right column start
+  const shipX = margin + 95;
   const shipLineWidth = contentWidth - shipX + margin;
   doc.text("Shipping Documents:", margin, y);
   doc.line(margin + 40, y + 1, shipX - 5, y + 1);
@@ -303,34 +244,27 @@ const drawLogSheetStructure = (doc, dateStr) => {
   doc.line(margin + 40, y + 9, shipX - 5, y + 9);
   y += 12;
   doc.setFontSize(8);
-  // Split the long text line
   const locationInstructionLines = doc.splitTextToSize(
     "Enter name of place you reported and where released from work and when and where each change of duty occurred. Use time standard of home terminal.",
     contentWidth
   );
   doc.text(locationInstructionLines, margin, y);
-  y += locationInstructionLines.length * 3.5; // Adjust y based on wrapped lines
-  doc.line(margin, y, contentWidth + margin, y); // Line for location notes
-  y += 4; // Space before recap
-
-  // --- Recap Section ---
+  y += locationInstructionLines.length * 3.5;
+  doc.line(margin, y, contentWidth + margin, y);
+  y += 4;
   doc.setFontSize(9);
   doc.text("Recap: Complete at end of day", margin, y);
   const recapY = y + 6;
   const recapCol0W = 35;
   const recapCol1 = margin + recapCol0W;
-  const recapColW = 50; // Width for 70/8 and 60/7 columns
+  const recapColW = 50;
   const recapCol2 = recapCol1 + recapColW + 5;
   const recapCol3 = recapCol2 + recapColW + 5;
-
   doc.setFontSize(8);
-  // Col 0
   doc.text("On duty hours", margin, recapY + 3);
   doc.text("today. Total", margin, recapY + 6);
   doc.text("lines 3 & 4", margin, recapY + 9);
-  doc.line(recapCol1 - 8, recapY + 10, recapCol1 - 2, recapY + 10); // Line for total
-
-  // Col 1 (70/8)
+  doc.line(recapCol1 - 8, recapY + 10, recapCol1 - 2, recapY + 10);
   doc.text("70 Hour / 8 Day", recapCol1, recapY);
   doc.text("A. Total hrs on duty last 7", recapCol1, recapY + 6);
   doc.text("   days including today.", recapCol1, recapY + 9);
@@ -339,7 +273,7 @@ const drawLogSheetStructure = (doc, dateStr) => {
     recapY + 10,
     recapCol1 + recapColW - 2,
     recapY + 10
-  ); // Line A
+  );
   doc.text("B. Total hours available", recapCol1, recapY + 15);
   doc.text("   tomorrow (70 hr. - A*)", recapCol1, recapY + 18);
   doc.line(
@@ -347,9 +281,7 @@ const drawLogSheetStructure = (doc, dateStr) => {
     recapY + 19,
     recapCol1 + recapColW - 2,
     recapY + 19
-  ); // Line B
-
-  // Col 2 (60/7)
+  );
   doc.text("60 Hour / 7 Day", recapCol2, recapY);
   doc.text("A. Total hrs on duty last 6", recapCol2, recapY + 6);
   doc.text("   days including today.", recapCol2, recapY + 9);
@@ -358,7 +290,7 @@ const drawLogSheetStructure = (doc, dateStr) => {
     recapY + 10,
     recapCol2 + recapColW - 2,
     recapY + 10
-  ); // Line A
+  );
   doc.text("B. Total hours available", recapCol2, recapY + 15);
   doc.text("   tomorrow (60 hr. - A*)", recapCol2, recapY + 18);
   doc.line(
@@ -366,30 +298,22 @@ const drawLogSheetStructure = (doc, dateStr) => {
     recapY + 19,
     recapCol2 + recapColW - 2,
     recapY + 19
-  ); // Line B
-
-  // Col 3 (Recap note)
+  );
   doc.text("*If you took 34", recapCol3, recapY);
   doc.text("consecutive", recapCol3, recapY + 3);
   doc.text("hours off duty", recapCol3, recapY + 6);
   doc.text("you have 60/70", recapCol3, recapY + 9);
   doc.text("hours available", recapCol3, recapY + 12);
-
-  // Return grid parameters needed for drawing lines/filling totals
   return { gridStartY, gridWidth, gridHeight, rowHeight, margin, contentWidth };
 };
-
-// Draw the actual status lines onto the grid (Should be okay, maybe adjust line weight)
 const drawStatusLines = (doc, gridParams, timeline) => {
   const { gridStartY, gridWidth, rowHeight, margin } = gridParams;
-  const gridEndY = gridStartY + gridParams.gridHeight; // Use gridHeight from params
+  const gridEndY = gridStartY + gridParams.gridHeight;
   const minutesInDay = 24 * 60;
   const statusMap = { OFF: 0, SB: 1, D: 2, ON: 3 };
-
-  doc.setLineWidth(0.5); // Slightly thinner status line
+  doc.setLineWidth(0.5);
   doc.setLineCap("butt");
   if (!timeline) return;
-
   for (const entry of timeline) {
     const status = entry.status;
     const startMinutes = timeToMinutes(entry.start_time);
@@ -397,37 +321,28 @@ const drawStatusLines = (doc, gridParams, timeline) => {
       entry.end_time === "23:59" ? minutesInDay : timeToMinutes(entry.end_time);
     const clampedStartMin = Math.max(0, Math.min(minutesInDay, startMinutes));
     const clampedEndMin = Math.max(0, Math.min(minutesInDay, endMinutes));
-
     if (clampedEndMin <= clampedStartMin) continue;
     const startX = margin + (clampedStartMin / minutesInDay) * gridWidth;
     const endX = margin + (clampedEndMin / minutesInDay) * gridWidth;
     const rowIndex = statusMap[status];
-
     if (rowIndex === undefined) continue;
-    const y = gridStartY + rowIndex * rowHeight + rowHeight / 2; // Center Y
-
-    // Draw Horizontal Line
+    const y = gridStartY + rowIndex * rowHeight + rowHeight / 2;
     doc.line(startX, y, endX, y);
-
-    // Draw Vertical Line at status change start
     if (startX > margin) {
       doc.setLineWidth(0.1);
       doc.line(startX, gridStartY, startX, gridEndY);
-      doc.setLineWidth(0.5); // Reset for next horizontal
+      doc.setLineWidth(0.5);
     }
   }
-  doc.setLineWidth(0.2); // Reset default
+  doc.setLineWidth(0.2);
 };
-
-// Fill in the total hours section - Adjusted positioning
 const fillTotalHours = (doc, gridParams, hoursSummary = {}) => {
   const { gridStartY, gridWidth, gridHeight, rowHeight, margin, contentWidth } =
     gridParams;
   const totalHoursColWidth = contentWidth - gridWidth - 2;
   const totalX = margin + gridWidth + 2;
-  const textX = totalX + totalHoursColWidth / 2; // Center text in column
-
-  doc.setFontSize(9); // Slightly larger font for totals
+  const textX = totalX + totalHoursColWidth / 2;
+  doc.setFontSize(9);
   doc.text(
     (hoursSummary.OFF ?? 0).toFixed(1),
     textX,
@@ -452,22 +367,19 @@ const fillTotalHours = (doc, gridParams, hoursSummary = {}) => {
     gridStartY + rowHeight * 3 + rowHeight / 2 + 1.5,
     { align: "center" }
   );
-
   const totalDayHours =
     (hoursSummary.OFF ?? 0) +
     (hoursSummary.SB ?? 0) +
     (hoursSummary.D ?? 0) +
     (hoursSummary.ON ?? 0);
-  doc.setFont(undefined, "bold"); // Bold total
+  doc.setFont(undefined, "bold");
   doc.text(totalDayHours.toFixed(1), textX, gridStartY + gridHeight + 3, {
     align: "center",
-  }); // Below total line
-  doc.setFont(undefined, "normal"); // Reset font
+  });
+  doc.setFont(undefined, "normal");
 };
-
-// --- Other Helper Functions (formatDateForPDF etc. - keep as is) ---
 const formatDateTimeForPDF = (isoString) => {
-  /* ... */ if (!isoString) return "N/A";
+  if (!isoString) return "N/A";
   try {
     const date = new Date(isoString);
     return date.toLocaleString(undefined, {
@@ -483,7 +395,7 @@ const formatDateTimeForPDF = (isoString) => {
   }
 };
 const formatDateForPDF = (isoString) => {
-  /* ... */ if (!isoString) return "N/A";
+  if (!isoString) return "N/A";
   const dateStr = isoString.includes("T")
     ? isoString
     : isoString + "T00:00:00Z";
@@ -503,7 +415,6 @@ const formatDateForPDF = (isoString) => {
 
 // --- Component Starts Here ---
 const TripResult = () => {
-  // ... (state variables: trip, loading, error, activeLogTab, activeTab, isExporting - same) ...
   const { tripId } = useParams();
   const [trip, setTrip] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -513,14 +424,15 @@ const TripResult = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-    /* ... fetch data ... */
     const fetchTripData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`${API_BASE_URL}/trips/${tripId}/`);
-        console.log("Fetched Trip Data:", response.data);
-        setTrip(response.data);
+        // --- THIS IS THE FIX ---
+        // We now use the centralized tripService to fetch data
+        const tripData = await tripService.getTripById(tripId);
+        console.log("Fetched Trip Data:", tripData);
+        setTrip(tripData);
       } catch (err) {
         console.error(
           "Error fetching trip data:",
@@ -547,11 +459,9 @@ const TripResult = () => {
     const baseFilename = `trip-${trip.id || "details"}`;
     try {
       if (format === "json") {
-        /* ... JSON export ... */
         const dataStr = JSON.stringify(trip, null, 2);
         triggerDownload(dataStr, baseFilename + ".json", "application/json");
       } else if (format === "csv") {
-        /* ... CSV export ... */
         const headers = [
           "Segment ID",
           "Type",
@@ -590,12 +500,10 @@ const TripResult = () => {
           "text/csv;charset=utf-8;"
         );
       } else if (format === "pdf") {
-        // Generate Log Sheet PDF
         console.log("Generating Log Sheet PDF...");
         if (!trip.eld_logs || trip.eld_logs.length === 0) {
           throw new Error("No ELD log data available to generate PDF.");
         }
-        // Use 'letter' format and 'portrait'
         const doc = new jsPDF({
           orientation: "portrait",
           unit: "mm",
@@ -604,7 +512,6 @@ const TripResult = () => {
         const sortedLogs = [...trip.eld_logs].sort((a, b) =>
           a.date.localeCompare(b.date)
         );
-
         sortedLogs.forEach((logEntry, index) => {
           if (index > 0) {
             doc.addPage("letter", "portrait");
@@ -618,21 +525,13 @@ const TripResult = () => {
             doc.text(`Log data missing for ${logDate}`, 10, 10);
             return;
           }
-
-          // 1. Draw Static Structure
           const gridParams = drawLogSheetStructure(doc, logDate);
-
-          // 2. Draw Status Lines
           drawStatusLines(doc, gridParams, logData.status_timeline);
-
-          // 3. Fill Total Hours
           fillTotalHours(doc, gridParams, logData.hours_summary);
-
-          // 4. Add Remarks/Locations - Refined
           const remarksStartY =
-            gridParams.gridStartY + gridParams.gridHeight + 6; // Y below grid
-          const remarksBoxY = remarksStartY + 5; // Top of text box area
-          const remarksBoxHeight = 25; // Available height
+            gridParams.gridStartY + gridParams.gridHeight + 6;
+          const remarksBoxY = remarksStartY + 5;
+          const remarksBoxHeight = 25;
           doc.setFontSize(8);
           doc.text(
             "Location Changes/Remarks:",
@@ -640,19 +539,16 @@ const TripResult = () => {
             remarksStartY + 4
           );
           let lineCount = 0;
-          const maxRemarkLines = Math.floor((remarksBoxHeight - 2) / 3.5); // Estimate max lines
-
+          const maxRemarkLines = Math.floor((remarksBoxHeight - 2) / 3.5);
           logData.status_timeline.forEach((entry) => {
             if (
               lineCount < maxRemarkLines &&
               entry.location &&
               entry.status !== "OFF"
             ) {
-              // Often only log non-OFF locations
               const timeStr = entry.start_time || "??:??";
               const statusStr = entry.status || "??";
               const locStr = entry.location || "N/A";
-              // Keep remarks concise
               const remarkLine = `${timeStr} - Stat ${statusStr} @ ${locStr}`;
               const splitLines = doc.splitTextToSize(
                 remarkLine,
@@ -670,7 +566,6 @@ const TripResult = () => {
               });
             }
           });
-          // Add Page Number
           const pageHeight = doc.internal.pageSize.height;
           const pageWidth = doc.internal.pageSize.width;
           doc.setFontSize(8);
@@ -680,7 +575,7 @@ const TripResult = () => {
             pageHeight - gridParams.margin + 5,
             { align: "right" }
           );
-        }); // End loop through logs
+        });
         doc.save(baseFilename + "_logsheets.pdf");
         console.log("Log Sheet PDF generation complete.");
       } else {
@@ -694,10 +589,8 @@ const TripResult = () => {
       setIsExporting(false);
     }
   };
-
-  // Trigger Download Helper (keep as is)
   const triggerDownload = (dataStr, filename, mimeType) => {
-    /* ... */ const blob = new Blob([dataStr], { type: mimeType });
+    const blob = new Blob([dataStr], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -707,10 +600,8 @@ const TripResult = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
-
-  // getSegmentStyles (keep as is)
   const getSegmentStyles = (type) => {
-    /* ... */ switch (type) {
+    switch (type) {
       case "DRIVE":
         return {
           icon: <TruckIcon className="h-5 w-5" />,
@@ -750,63 +641,53 @@ const TripResult = () => {
     }
   };
 
-  // Loading State (keep as is)
   if (loading) {
-    /* ... loading return ... */ return (
+    return (
       <div className="bg-slate-50 min-h-screen flex items-center justify-center">
-        {" "}
         <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md mx-auto">
-          {" "}
           <div className="relative mx-auto w-16 h-16 mb-6">
             <div className="absolute top-0 left-0 w-full h-full rounded-full border-4 border-gray-100"></div>
             <div className="absolute top-0 left-0 w-full h-full rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
-          </div>{" "}
+          </div>
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
             Loading Trip Details
           </h2>
           <p className="text-gray-500">
             Please wait while we retrieve your trip information...
-          </p>{" "}
-        </div>{" "}
+          </p>
+        </div>
       </div>
     );
   }
 
-  // Error State or No Trip Data (keep as is)
   if (error || !trip) {
-    /* ... error return ... */ return (
+    return (
       <div className="bg-slate-50 min-h-screen flex items-center justify-center">
-        {" "}
         <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md mx-auto">
-          {" "}
-          <ExclamationCircleIcon className="h-16 w-16 text-red-500 mx-auto mb-4" />{" "}
+          <ExclamationCircleIcon className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-3">
             Error Loading Trip
-          </h2>{" "}
+          </h2>
           <p className="text-gray-600 mb-6">
             {error || "Trip data could not be loaded."}
-          </p>{" "}
+          </p>
           <Link
             to="/"
             className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md"
           >
-            {" "}
-            <ArrowLeftIcon className="h-5 w-5 mr-2" /> Back to Trip Planner{" "}
-          </Link>{" "}
-        </div>{" "}
+            <ArrowLeftIcon className="h-5 w-5 mr-2" /> Back to Trip Planner
+          </Link>
+        </div>
       </div>
     );
   }
 
-  // Group ELD logs (keep as is)
   const eldLogsByDate = {};
   if (trip.eld_logs && trip.eld_logs.length > 0) {
     trip.eld_logs.forEach((log) => {
       eldLogsByDate[log.date] = { date: log.date, log_data: log.log_data };
     });
   }
-
-  // Calculate stats (keep as is)
   const totalDistance = Math.round(
     trip.segments?.reduce((sum, seg) => sum + (seg.distance_miles || 0), 0) || 0
   );
@@ -822,40 +703,33 @@ const TripResult = () => {
       (seg) => seg.segment_type === "REST" || seg.segment_type === "FUEL"
     ).length || 0;
 
-  // Main Render
   return (
     <div className="bg-slate-50 min-h-screen pb-12">
       <div className="container mx-auto max-w-7xl py-8 px-4 sm:px-6">
-        {/* Header with Export Buttons */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          {" "}
           <Link
             to="/"
             className="inline-flex items-center px-4 py-2 bg-white border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all shadow-sm"
           >
-            {" "}
-            <ArrowLeftIcon className="h-5 w-5 mr-2" /> New Trip{" "}
-          </Link>{" "}
+            <ArrowLeftIcon className="h-5 w-5 mr-2" /> New Trip
+          </Link>
           <div className="flex flex-wrap gap-2">
-            {" "}
             <button
               onClick={() => handleExport("json")}
               disabled={!trip || isExporting}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {" "}
-              <DocumentArrowDownIcon className="h-5 w-5 mr-2" />{" "}
-              {isExporting ? "..." : "Export JSON"}{" "}
-            </button>{" "}
+              <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
+              {isExporting ? "..." : "Export JSON"}
+            </button>
             <button
               onClick={() => handleExport("csv")}
               disabled={!trip || isExporting}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {" "}
-              <DocumentArrowDownIcon className="h-5 w-5 mr-2" />{" "}
-              {isExporting ? "..." : "Export CSV"}{" "}
-            </button>{" "}
+              <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
+              {isExporting ? "..." : "Export CSV"}
+            </button>
             <button
               onClick={() => handleExport("pdf")}
               disabled={
@@ -871,32 +745,24 @@ const TripResult = () => {
                   : "Export Daily Log Sheet PDF"
               }
             >
-              {" "}
-              <DocumentArrowDownIcon className="h-5 w-5 mr-2" />{" "}
-              {isExporting ? "..." : "Export Log PDF"}{" "}
-            </button>{" "}
-          </div>{" "}
+              <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
+              {isExporting ? "..." : "Export Log PDF"}
+            </button>
+          </div>
         </div>
-
-        {/* Title Section */}
         <div className="text-center mb-10">
-          {" "}
           <h1 className="text-3xl font-bold text-gray-800 mb-3">
             Trip Plan Results
-          </h1>{" "}
+          </h1>
           <div className="inline-flex items-center bg-white px-4 py-2 rounded-full shadow-sm text-gray-600">
-            {" "}
-            <span className="font-medium">{trip.current_location}</span>{" "}
-            <ArrowRightIcon className="h-4 w-4 mx-2 text-gray-400" />{" "}
-            <span className="font-medium">{trip.pickup_location}</span>{" "}
-            <ArrowRightIcon className="h-4 w-4 mx-2 text-gray-400" />{" "}
-            <span className="font-medium">{trip.dropoff_location}</span>{" "}
-          </div>{" "}
+            <span className="font-medium">{trip.current_location}</span>
+            <ArrowRightIcon className="h-4 w-4 mx-2 text-gray-400" />
+            <span className="font-medium">{trip.pickup_location}</span>
+            <ArrowRightIcon className="h-4 w-4 mx-2 text-gray-400" />
+            <span className="font-medium">{trip.dropoff_location}</span>
+          </div>
         </div>
-
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {" "}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 transform transition-all hover:shadow-md">
             <div className="flex items-center">
               <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mr-4">
@@ -911,7 +777,7 @@ const TripResult = () => {
                 </p>
               </div>
             </div>
-          </div>{" "}
+          </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 transform transition-all hover:shadow-md">
             <div className="flex items-center">
               <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mr-4">
@@ -926,7 +792,7 @@ const TripResult = () => {
                 </p>
               </div>
             </div>
-          </div>{" "}
+          </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 transform transition-all hover:shadow-md">
             <div className="flex items-center">
               <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center mr-4">
@@ -941,12 +807,9 @@ const TripResult = () => {
                 </p>
               </div>
             </div>
-          </div>{" "}
+          </div>
         </div>
-
-        {/* Main Content (Tabs) */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          {/* Tabs Navigation */}
           <div className="flex border-b overflow-x-auto">
             <button
               className={`flex items-center px-4 sm:px-6 py-4 transition-colors whitespace-nowrap ${
@@ -982,17 +845,14 @@ const TripResult = () => {
               ELD Logs
             </button>
           </div>
-          {/* Tab Content */}
           <div className="p-4 sm:p-6">
             {activeTab === 0 && (
               <div className="rounded-lg overflow-hidden border border-gray-200 shadow-inner">
-                {" "}
-                {trip && <RouteMap trip={trip} />}{" "}
+                {trip && <RouteMap trip={trip} />}
               </div>
             )}
             {activeTab === 1 && (
               <div className="space-y-4">
-                {" "}
                 {trip?.segments?.map((segment, index) => {
                   const style = getSegmentStyles(segment.segment_type);
                   const borderColorClass = `border-${style.color}-500`;
@@ -1005,30 +865,25 @@ const TripResult = () => {
                       key={index}
                       className={`p-4 sm:p-5 rounded-lg border-l-4 ${borderColorClass} ${bgColorClass} shadow-sm`}
                     >
-                      {" "}
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        {" "}
                         <div className="flex items-center flex-grow min-w-0">
-                          {" "}
                           <div
                             className={`mr-3 sm:mr-4 flex-shrink-0 ${textColorClass}`}
                           >
                             {style.icon}
-                          </div>{" "}
+                          </div>
                           <div className="min-w-0">
-                            {" "}
                             <span
                               className={`inline-block px-3 py-1 text-xs font-medium ${labelTextColorClass} ${labelBgColorClass} rounded-full mb-2`}
                             >
                               {style.label}
-                            </span>{" "}
+                            </span>
                             <h3 className="font-medium text-gray-900 text-sm sm:text-base truncate">
                               {segment.start_location} → {segment.end_location}
-                            </h3>{" "}
-                          </div>{" "}
-                        </div>{" "}
+                            </h3>
+                          </div>
+                        </div>
                         <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 text-sm sm:text-base flex-shrink-0 pl-8 md:pl-0">
-                          {" "}
                           <div>
                             <p className="text-xs text-gray-500 uppercase tracking-wider">
                               Distance
@@ -1036,7 +891,7 @@ const TripResult = () => {
                             <p className="font-semibold">
                               {Math.round(segment.distance_miles || 0)} mi
                             </p>
-                          </div>{" "}
+                          </div>
                           <div>
                             <p className="text-xs text-gray-500 uppercase tracking-wider">
                               Duration
@@ -1047,7 +902,7 @@ const TripResult = () => {
                               ) / 10}{" "}
                               hr
                             </p>
-                          </div>{" "}
+                          </div>
                           {segment.end_time && (
                             <div>
                               <p className="text-xs text-gray-500 uppercase tracking-wider">
@@ -1064,24 +919,22 @@ const TripResult = () => {
                                 )}
                               </p>
                             </div>
-                          )}{" "}
-                        </div>{" "}
-                      </div>{" "}
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
-                })}{" "}
+                })}
                 {(!trip?.segments || trip.segments.length === 0) && (
                   <p className="text-center text-gray-500 italic">
                     No segments generated for this trip.
                   </p>
-                )}{" "}
+                )}
               </div>
             )}
             {activeTab === 2 && (
               <div>
-                {" "}
                 <div className="flex overflow-x-auto space-x-2 border-b mb-6 pb-2">
-                  {" "}
                   {Object.keys(eldLogsByDate).length > 0 ? (
                     Object.keys(eldLogsByDate)
                       .sort()
@@ -1095,31 +948,29 @@ const TripResult = () => {
                           }`}
                           onClick={() => setActiveLogTab(index)}
                         >
-                          {" "}
-                          <HeroCalendarIcon className="h-4 w-4 mr-2" />{" "}
+                          <HeroCalendarIcon className="h-4 w-4 mr-2" />
                           <span className="text-sm">
                             {formatDateForPDF(date)}
-                          </span>{" "}
+                          </span>
                         </button>
                       ))
                   ) : (
                     <p className="text-sm text-gray-500 italic px-4 py-2">
                       No ELD logs found for this trip.
                     </p>
-                  )}{" "}
-                </div>{" "}
+                  )}
+                </div>
                 {Object.keys(eldLogsByDate).length > 0 ? (
                   <div className="bg-gray-50 p-4 sm:p-5 rounded-lg">
-                    {" "}
                     <ELDLogViewer
                       log={
                         eldLogsByDate[
                           Object.keys(eldLogsByDate).sort()[activeLogTab]
                         ]?.log_data
                       }
-                    />{" "}
+                    />
                   </div>
-                ) : null}{" "}
+                ) : null}
               </div>
             )}
           </div>

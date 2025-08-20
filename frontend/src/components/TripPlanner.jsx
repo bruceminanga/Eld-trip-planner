@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { tripService } from "../services/api"; // ADD THIS LINE (adjust path if needed)
 
 // Simple SVG icons as components
 const LocationIcon = () => (
@@ -142,20 +141,17 @@ const TripPlanner = () => {
     try {
       const current_cycle_used = parseFloat(formData.current_cycle_used);
 
-      // Send data to API
-      const response = await axios.post(`${API_BASE_URL}/trips/`, {
+      // Use the centralized service
+      const newTrip = await tripService.createTrip({
         ...formData,
         current_cycle_used,
       });
 
-      // Navigate to result page
-      navigate(`/result/${response.data.id}`);
+      // Navigate to result page with the new trip's ID
+      navigate(`/result/${newTrip.id}`);
     } catch (error) {
       setErrors({
-        form:
-          error.response?.data?.error ||
-          error.message ||
-          "Something went wrong",
+        form: error.message || "Something went wrong",
       });
     } finally {
       setIsLoading(false);

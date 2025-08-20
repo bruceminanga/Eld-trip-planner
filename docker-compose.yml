@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  # Service for the PostgreSQL Database
+  db:
+    image: postgres:15-alpine # Your choice of Postgres 15 is perfectly fine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env.dev
+    ports:
+      # Map to host port 5433 to avoid conflicts with local Postgres on 5432
+      - "5433:5432"
+    # The healthcheck is crucial for a reliable startup order
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - eld-trip-planner-net
+
+  # Service for the Django Backend Application
+  backend:
+    build:
+      context: ./backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env.dev
+    # This now waits for the database to be fully healthy, not just started
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - eld-trip-planner-net
+
+  # NEW: Service for the React Frontend (Vite Dev Server)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile # Use the development Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot-reloading
+      - ./frontend:/app
+      # Prevents host node_modules from overwriting container node_modules
+      - /app/node_modules
+    env_file:
+      - ./.env.dev
+    depends_on:
+      - backend # Start after the backend is up
+    restart: unless-stopped
+    networks:
+      - eld-trip-planner-net
+
+# Define a named volume for persisting database data
+volumes:
+  postgres_data:
+
+# Define our custom network
+networks:
+  eld-trip-planner-net:
+    driver: bridge

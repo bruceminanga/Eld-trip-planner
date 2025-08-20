@@ -1,0 +1,38 @@
+# frontend/Dockerfile.prod
+
+# ---- Build Stage ----
+# Build the React application
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package.json ./
+RUN npm install
+
+# Copy the rest of the application source code
+COPY . .
+
+# Run the build script to generate the static files
+# The output will be in the /app/dist directory
+RUN npm run build
+
+
+# ---- Production Stage ----
+# Serve the static files with Nginx
+FROM nginx:stable-alpine AS final
+
+# Copy the built static files from the 'builder' stage to the Nginx html directory
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# We need a custom Nginx configuration to handle Single Page Application (SPA) routing
+# First, remove the default Nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Now, copy our custom configuration file
+COPY nginx.prod.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80 to the outside world
+EXPOSE 80
+
+# Nginx will be started automatically by the base image's default command
