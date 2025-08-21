@@ -8,7 +8,7 @@ metadata:
 data:
   # General Django Settings
   DEBUG: "True"
-  DJANGO_ALLOWED_HOSTS: "backend,localhost,127.0.0.1" # Added 'backend' for service-to-service communication
+  DJANGO_ALLOWED_HOSTS: "backend,localhost,127.0.0.1,192.168.49.2" # Added 'backend' for service-to-service communication
 
   # Database Settings
   # WARNING: Storing passwords in a ConfigMap is NOT secure and is for local dev ONLY.

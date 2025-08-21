@@ -1,0 +1,15 @@
+# kubernetes/base/frontend-service.yml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: eld-trip-planner
+spec:
+  type: ClusterIP # Only accessible from inside the cluster
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80 # The port this Service will be available on
+      targetPort: 80 # The port on the frontend Pods to send traffic to

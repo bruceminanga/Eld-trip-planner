@@ -16,12 +16,27 @@ spec:
       containers:
         - name: backend
           # IMPORTANT: Use the image name you just built
-          image: bruceminanga/eld-trip-planner-backend:0.3
+          image: bruceminanga/eld-trip-planner-backend:0.4
           # THIS IS THE KEY CHANGE FOR MINIKUBE
           # It tells K8s to use the local image we built, not pull from Docker Hub.
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m" # 1/10th of a CPU core
+            limits:
+              memory: "512Mi"
+              cpu: "500m" # Half of a CPU core
+        # ------------------------------
+
           envFrom:
             - configMapRef:
                 name: backend-config

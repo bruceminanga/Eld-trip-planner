@@ -1,0 +1,25 @@
+# FILE: migration-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migrations
+  namespace: eld-trip-planner
+spec:
+  template:
+    spec:
+      containers:
+        - name: django-migrations
+          # IMPORTANT: Use the exact same backend image as your deployment
+          image: bruceminanga/eld-trip-planner-backend:0.3 # Or whatever your current backend tag is
+          imagePullPolicy: IfNotPresent
+          # The command to run inside the container
+          command: ["python", "manage.py", "migrate"]
+          # IMPORTANT: Use the same environment variables (for DB connection)
+          # as your backend deployment.
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+      # This ensures the job doesn't run forever if it fails
+      restartPolicy: OnFailure

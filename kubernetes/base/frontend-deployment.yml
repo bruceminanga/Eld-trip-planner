@@ -1,0 +1,24 @@
+# kubernetes/base/frontend-deployment.yml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: eld-trip-planner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          # IMPORTANT: Replace with the frontend image you just built
+          image: bruceminanga/eld-trip-planner-frontend:0.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80 # The Nginx server inside the container runs on port 80
