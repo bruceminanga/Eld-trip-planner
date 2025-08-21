@@ -13,7 +13,6 @@ The primary goal of this repository is to showcase a robust DevOps architecture,
 ## 📋 Table of Contents
 
 - [🏛️ Architecture & DevOps Showcase](#️-architecture--devops-showcase)
-  - [System Architecture Diagram](#system-architecture-diagram)
   - [Key DevOps Features](#key-devops-features)
 - [🧠 Challenges Solved & Lessons Learned](#-challenges-solved--lessons-learned)
 - [🚀 Getting Started](#-getting-started)
