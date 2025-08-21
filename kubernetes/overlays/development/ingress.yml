@@ -1,0 +1,41 @@
+# FILE: ingress.yml
+
+# --- Ingress Resource #1: For the API Backend ---
+apiVersion: networking.k8s.io/v1 # <--- THE FIX IS HERE (k8s.io, not k.io)
+kind: Ingress
+metadata:
+  name: eld-trip-planner-ingress-api
+  namespace: eld-trip-planner
+  annotations:
+    # We tell Nginx to keep the /api prefix when forwarding
+    nginx.ingress.kubernetes.io/rewrite-target: /api/$2
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+---
+# --- Ingress Resource #2: For the Frontend ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eld-trip-planner-ingress-frontend
+  namespace: eld-trip-planner
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
