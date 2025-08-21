@@ -28,10 +28,6 @@ The primary goal of this repository is to showcase a robust DevOps architecture,
 
 This project is structured to mirror modern software development and deployment practices, separating the application code from the infrastructure configuration.
 
-### System Architecture Diagram
-
-_(You can create a free diagram using [draw.io](https://draw.io), upload the image to a service like [Imgur](https://imgur.com/), and paste the link here.)_
-
 ### Key DevOps Features
 
 - **Containerized Environments**: The entire application stack (Frontend, Backend, Database) is fully containerized using Docker, ensuring consistency and portability between development and production.
