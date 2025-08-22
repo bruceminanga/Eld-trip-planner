@@ -15,10 +15,6 @@ The primary goal of this repository is to showcase a robust and repeatable DevOp
 
 <br>
 
-![Application Screenshot](./screenshot.png)
-
-> **Note:** Replace `screenshot.png` with an actual screenshot of your application.
-
 ---
 
 ## 📋 Table of Contents
