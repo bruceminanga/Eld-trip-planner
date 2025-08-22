@@ -18,7 +18,7 @@ spec:
       containers:
         - name: frontend
           # IMPORTANT: Replace with the frontend image you just built
-          image: bruceminanga/eld-trip-planner-frontend:0.5
+          image: bruceminanga/eld-trip-planner-frontend
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80 # The Nginx server inside the container runs on port 80

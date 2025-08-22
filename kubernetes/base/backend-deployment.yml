@@ -1,3 +1,4 @@
+# FILE: kubernetes/base/backend-deployment.yml (Corrected)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,19 +16,16 @@ spec:
     spec:
       containers:
         - name: backend
-          # IMPORTANT: Use the image name you just built
-          image: bruceminanga/eld-trip-planner-backend:0.4
-          # THIS IS THE KEY CHANGE FOR MINIKUBE
-          # It tells K8s to use the local image we built, not pull from Docker Hub.
+          image: bruceminanga/eld-trip-planner-backend
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
+          # THIS IS THE SINGLE, CORRECT envFrom BLOCK
           envFrom:
             - configMapRef:
                 name: backend-config
             - secretRef:
                 name: backend-secret
-
           resources:
             requests:
               memory: "256Mi"
@@ -35,10 +33,3 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m" # Half of a CPU core
-        # ------------------------------
-
-          envFrom:
-            - configMapRef:
-                name: backend-config
-            - secretRef:
-                name: backend-secret

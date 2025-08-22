@@ -1,0 +1,15 @@
+# FILE: kubernetes/overlays/development/kustomization.yaml (CORRECTED)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - configmap.yml
+  - secret.yml
+  - ingress.yml
+
+images:
+  - name: bruceminanga/eld-trip-planner-backend
+    newTag: "0.4" # <-- The quotes make this a STRING
+  - name: bruceminanga/eld-trip-planner-frontend
+    newTag: "0.5" # <-- The quotes make this a STRING
