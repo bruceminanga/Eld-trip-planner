@@ -1,192 +1,186 @@
 # 🚚 ELD Compliant Trip Planner
 
-![GitHub language count](https://img.shields.io/github/languages/count/bruceminanga/Eld-trip-planner)
-![GitHub top language](https://img.shields.io/github/languages/top/bruceminanga/Eld-trip-planner?color=blue&logo=python)
-![License](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React Badge"/>
+  <img src="https://img.shields.io/badge/Django-092E20?style=for-the-badge&logo=django&logoColor=white" alt="Django Badge"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL Badge"/>
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Badge"/>
+  <img src="https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Kubernetes Badge"/>
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License"/>
+</p>
 
-A full-stack web application built with a Django backend and React frontend, designed for a cloud-native deployment. This project demonstrates a complete DevOps lifecycle, from containerized local development to a production-ready deployment on a Kubernetes cluster.
+A full-stack web application built with a Django backend and React frontend, architected for a complete, cloud-native deployment lifecycle. This project demonstrates modern DevOps principles, from containerized local development to a production-ready, orchestrated deployment on Kubernetes using Kustomize.
 
-The primary goal of this repository is to showcase a robust DevOps architecture, including infrastructure-as-code, containerization, and orchestration.
+The primary goal of this repository is to showcase a robust and repeatable DevOps architecture.
+
+<br>
+
+![Application Screenshot](./screenshot.png)
+
+> **Note:** Replace `screenshot.png` with an actual screenshot of your application.
 
 ---
 
 ## 📋 Table of Contents
 
-- [🏛️ Architecture & DevOps Showcase](#️-architecture--devops-showcase)
-  - [Key DevOps Features](#key-devops-features)
+- [✨ Key Features](#-key-features)
+- [🏛️ DevOps & Architecture Showcase](#️-devops--architecture-showcase)
 - [🧠 Challenges Solved & Lessons Learned](#-challenges-solved--lessons-learned)
-- [🚀 Getting Started](#-getting-started)
-  - [1. Local Development (Docker Compose)](#1-local-development-with-docker-compose)
-  - [2. Production Deployment (Kubernetes & Minikube)](#2-production-deployment-with-kubernetes--minikube)
-- [✨ Features](#-features)
 - [🛠️ Technology Stack](#️-technology-stack)
+- [🚀 Getting Started](#-getting-started)
+- [📈 Future Improvements](#-future-improvements)
 
 ---
 
-## 🏛️ Architecture & DevOps Showcase
+## ✨ Key Features
 
-This project is structured to mirror modern software development and deployment practices, separating the application code from the infrastructure configuration.
+- 📍 **Intelligent Route Planning**: Calculates optimized driving routes between multiple locations using the Geoapify API.
+- ⏱️ **Automated HOS Compliance**: Automatically inserts mandatory 30-minute rest breaks and fuel stops based on Hours of Service regulations.
+- 🗺️ **Interactive Map Visualization**: Displays the full trip, stops, and segments on a dynamic MapLibre GL JS map.
+- 📑 **Predictive ELD Log Generation**: Creates a complete, predicted daily log (On Duty, Driving, Off Duty) based on the generated trip plan.
+- 📊 **Data Visualization & Export**: Displays the ELD log with a 24-hour timeline graph and allows exporting the trip plan and logs to JSON, CSV, and PDF.
 
-### Key DevOps Features
+---
 
-- **Containerized Environments**: The entire application stack (Frontend, Backend, Database) is fully containerized using Docker, ensuring consistency and portability between development and production.
+## 🏛️ DevOps & Architecture Showcase
 
-- **Orchestration with Kubernetes**: The production environment is defined declaratively using Kubernetes manifests. This includes:
+This project is meticulously structured to demonstrate modern, scalable, and maintainable software deployment practices.
 
-  - **Deployments** for stateless frontend and backend services.
-  - A **StatefulSet** and **PersistentVolumeClaim** for the PostgreSQL database to ensure data persistence.
-  - **ConfigMaps** and **Secrets** to manage environment configuration and sensitive data securely.
-  - An **Ingress** controller to manage external traffic, routing API calls to the backend and all other requests to the frontend.
+### 🐳 Containerization with Docker
 
-- **Local Development with Docker Compose**: A `docker-compose.yml` file provides a one-command setup (`docker-compose up`) for a complete local development environment, including hot-reloading for both the frontend and backend.
+The entire application stack (Frontend, Backend, Database) is fully containerized, ensuring perfect consistency between all environments.
 
-- **Production-Ready Builds**: The project utilizes multi-stage Docker builds to create lean, optimized, and secure production images. The final frontend image is a lightweight Nginx server hosting the static React build.
+- **Development vs. Production Dockerfiles**: The project utilizes separate Dockerfiles for development (with hot-reloading via Vite) and production (a lean, multi-stage build served by Nginx), demonstrating a clear understanding of environment-specific needs.
+- **Optimization**: Multi-stage Docker builds are used to create small, secure, and efficient production images, free of unnecessary build dependencies.
 
-- **CI/CD Ready**: The project structure is prepared for a full CI/CD pipeline (e.g., using GitHub Actions) to automate building, testing, pushing images, and deploying to Kubernetes.
+### ☸️ Orchestration with Kubernetes
+
+The application is defined declaratively using Kubernetes manifests for a resilient, self-healing deployment.
+
+- **High-Level Objects**: Utilizes **Deployments** for stateless services, a **StatefulSet** with a **PersistentVolumeClaim** for the database, and **Services** for stable internal networking.
+- **Advanced Traffic Management**: A robust **Ingress** configuration routes external traffic, directing API calls to the backend and all other requests to the frontend, perfectly isolating the services.
+
+### ⚙️ Configuration Management with Kustomize
+
+To avoid repetitive and error-prone YAML, the project employs a Kustomize `base` and `overlay` structure.
+
+- **DRY Principle**: The `base` directory contains the generic, structural definition of the application.
+- **Environment-Specific Overlays**: The `overlays/development` directory contains only the specific configurations for that environment (e.g., ConfigMaps with `DEBUG=True`, Ingress rules, secrets, and image tags). This provides a clean separation of concerns and a single source of truth for each environment's configuration.
+
+### 🚀 Automated Deployment Script
+
+The `./deploy-to-dev.sh` script automates the entire Kubernetes deployment and verification process. It serves as the foundation for a future CI/CD pipeline and performs critical tasks:
+
+- **Handles Job Lifecycle**: Correctly deletes the previous migration `Job` before applying the new one, respecting the immutable nature of Jobs.
+- **Verifies Rollouts**: Uses `kubectl rollout status` to wait for Deployments to become healthy and ready.
+- **Runs Health Checks**: Performs a final "smoke test" using `curl` to confirm the application is accessible and responding correctly after deployment.
 
 ---
 
 ## 🧠 Challenges Solved & Lessons Learned
 
-This project served as a deep dive into real-world DevOps challenges. Key problems diagnosed and solved include:
+This project was a journey through real-world DevOps problems, providing invaluable hands-on experience.
 
-- **Networking**: Solved cross-container communication issues first with a Vite proxy in Docker Compose, then with a robust Ingress configuration in Kubernetes.
+- **Mastering Ingress Routing**: Diagnosed and fixed a series of `404 Not Found` errors by evolving the Ingress configuration. This involved implementing correct URL rewrite rules (`rewrite-target`) and splitting the configuration into two separate Ingress resources to isolate the frontend and backend routing logic, preventing rule conflicts.
 
-- **Image Management**: Mastered the `minikube docker-env` workflow to manage images between the local host and the cluster's internal Docker daemon, resolving common `ImagePullBackOff` errors.
+- **Solving the Immutable Job Problem**: Understood the fundamental difference between a `Deployment` and a `Job` in Kubernetes. Developed the correct, repeatable workflow of deleting and reapplying the migration Job to handle database schema changes reliably.
 
-- **Configuration Management**: Debugged `DisallowedHost` errors by correctly populating Kubernetes ConfigMaps and ensuring pods were restarted to receive the updated configuration.
+- **Bridging the Dev/Prod Divide**: Identified that the `Dockerfile` used for local development was unsuitable for a Kubernetes deployment. Created a separate, multi-stage `Dockerfile.prod` and implemented a Kustomize overlay to ensure the correct, optimized image was used.
 
-- **Resource Management**: Addressed application stability issues by implementing `resources.requests` and `resources.limits` in the Kubernetes Deployment, preventing pod crashes due to Out Of Memory (OOM) errors.
-
----
-
-## 🚀 Getting Started
-
-You can run this project in two modes: a quick local development setup with Docker Compose, or the full production-like deployment on a local Kubernetes cluster.
-
-### 1. Local Development (with Docker Compose)
-
-This is the fastest way to get the application running on your local machine.
-
-#### Prerequisites
-
-- Docker & Docker Compose
-
-#### Instructions
-
-1.  **Clone the repository:**
-
-    ```bash
-    git clone https://github.com/bruceminanga/Eld-trip-planner.git
-    cd Eld-trip-planner
-    ```
-
-2.  **Create the environment file:**
-    Copy the example environment file. You will need to add your Geoapify API key to this file.
-
-    ```bash
-    cp .env.example .env.dev
-    ```
-
-    Now, open `.env.dev` with a text editor and add your `GEOAPIFY_API_KEY`.
-
-3.  **Build and run the services:**
-
-    ```bash
-    docker-compose up --build
-    ```
-
-4.  **Access the application:**
-    The application will be available at `http://localhost:5173`. The backend API is at `http://localhost:8000`. Changes to the frontend or backend code will trigger automatic reloads.
-
-### 2. Production Deployment (with Kubernetes & Minikube)
-
-This method deploys the application to a local Kubernetes cluster, mirroring a real production environment.
-
-#### Prerequisites
-
-- Docker
-- Minikube
-- kubectl
-
-#### Instructions
-
-1.  **Start Minikube:**
-
-    ```bash
-    minikube start --memory 4096 --cpus 4
-    ```
-
-2.  **Enable the Ingress addon:**
-
-    ```bash
-    minikube addons enable ingress
-    ```
-
-3.  **Point your shell to Minikube's Docker daemon:**
-
-    > **Important:** This is a critical step. It makes your local Docker build command build images _inside_ Minikube's environment, so the cluster can find them without a remote registry.
-
-    ```bash
-    eval $(minikube -p minikube docker-env)
-    ```
-
-4.  **Build the Docker images:**
-    Build the production images for both services. Replace `yourusername` with your Docker Hub username (or any other name).
-
-    ```bash
-    # Build the backend image
-    docker build -t yourusername/eld-trip-planner-backend:0.1 -f backend/Dockerfile backend/
-
-    # Build the frontend image
-    docker build -t yourusername/eld-trip-planner-frontend:0.1 -f frontend/Dockerfile.prod frontend/
-    ```
-
-5.  **Update Kubernetes Manifests:**
-
-    - Ensure the `image` names in `kubernetes/base/backend-deployment.yml` and `kubernetes/base/frontend-deployment.yml` match the images you just built (e.g., `yourusername/eld-trip-planner-backend:0.1`).
-    - Add your Geoapify API key (Base64 encoded) to `kubernetes/base/secret.yml`.
-    - Add your Minikube IP (find it via `minikube ip`) to the `DJANGO_ALLOWED_HOSTS` list in `kubernetes/base/configmap.yml`.
-
-6.  **Apply the Kubernetes manifests:**
-
-    ```bash
-    # Apply the base resources (Deployments, Services, PVC, etc.)
-    kubectl apply -f kubernetes/base/
-
-    # Apply the overlay (Ingress, etc.)
-    kubectl apply -f kubernetes/overlays/development/
-    ```
-
-7.  **Find the application IP address:**
-
-    ```bash
-    minikube ip
-    ```
-
-8.  **Access the application:**
-    Open your browser and navigate to `http://<MINIKUBE_IP>` returned by the previous command.
-
----
-
-## ✨ Features
-
-- 📍 **Route Planning**: Calculates driving routes between multiple locations.
-- 🗺️ **Interactive Map**: Displays the calculated route, start, pickup, and dropoff points.
-- ⏱️ **HOS Simulation**: Automatically inserts required REST breaks and FUEL stops based on federal rules.
-- 📊 **Trip Segments**: Shows a detailed breakdown of the planned trip into driving, resting, and other segments.
-- 📑 **ELD Log Generation**: Automatically generates predicted daily ELD log data based on the plan.
-- 📈 **ELD Log Visualization**: Displays generated ELD data with a daily summary, a 24-hour timeline graph, and a detailed list of status changes.
-- 📄 **Multi-Format Export**: Allows users to export the generated trip plan and logs as JSON, CSV, and formatted PDF daily log sheets.
+- **Configuration Propagation**: Debugged `DisallowedHost` errors by tracing the configuration lifecycle, from updating the `ConfigMap` to ensuring the `Deployment` was correctly rolled out to make the pods pick up the new environment variables.
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Category         | Technology                                        |
-| :--------------- | :------------------------------------------------ |
-| **Backend**      | Python, Django, Django REST Framework             |
-| **Frontend**     | React, Vite, Tailwind CSS, MapLibre GL JS, Axios  |
-| **Database**     | PostgreSQL (Production/Kubernetes), SQLite (Dev)  |
-| **Infra/DevOps** | Docker, Kubernetes, Nginx, Docker Compose, GitHub |
-| **APIs**         | Geoapify (Geocoding, Routing, Map Tiles)          |
+| Category           | Technology                                                 |
+| :----------------- | :--------------------------------------------------------- |
+| **Backend**        | Python, Django, Django REST Framework                      |
+| **Frontend**       | React, Vite, Tailwind CSS, MapLibre GL JS, Axios           |
+| **Database**       | PostgreSQL                                                 |
+| **DevOps & Infra** | Docker, Kubernetes, Kustomize, Nginx, Docker Compose, Bash |
+| **APIs**           | Geoapify (Geocoding, Routing, Map Tiles)                   |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Docker & Docker Compose
+- Minikube
+- kubectl
+
+### 1. Local Development (for Coding)
+
+This is the fastest way to run the application for coding, with hot-reloading enabled.
+
+1.  **Clone & Setup Environment:**
+
+    ```bash
+    git clone https://github.com/bruceminanga/Eld-trip-planner.git
+    cd Eld-trip-planner
+    cp .env.example .env.dev
+    ```
+
+    Now, open `.env.dev` and add your `GEOAPIFY_API_KEY`.
+
+2.  **Run with Docker Compose:**
+
+    ```bash
+    docker-compose up --build
+    ```
+
+3.  **Access:** The app is available at `http://localhost:5173`.
+
+### 2. Kubernetes Deployment (for Integration)
+
+This deploys the application to a local Kubernetes cluster, simulating a real-world development/staging environment.
+
+1.  **Start Minikube & Enable Ingress:**
+
+    ```bash
+    minikube start --memory 4096 --cpus 4
+    minikube addons enable ingress
+    ```
+
+2.  **Build Production Images:**
+
+    > **Note:** Replace `your-dockerhub-username` with your actual username.
+
+    ```bash
+    # Build the backend image
+    docker build -t your-dockerhub-username/eld-trip-planner-backend:0.4 -f backend/Dockerfile backend/
+
+    # Build the frontend image
+    docker build -t your-dockerhub-username/eld-trip-planner-frontend:0.5 -f frontend/Dockerfile.prod frontend/
+    ```
+
+3.  **Load Images into Minikube:**
+
+    This makes the images available to the cluster without a remote registry.
+
+    ```bash
+    minikube image load your-dockerhub-username/eld-trip-planner-backend:0.4
+    minikube image load your-dockerhub-username/eld-trip-planner-frontend:0.5
+    ```
+
+4.  **Configure the `development` Overlay:**
+
+    All configuration is managed in `kubernetes/overlays/development/`.
+
+    - **Image Tags**: Open `kustomization.yaml` and ensure the `newTag` values in the `images` block match the tags you just built.
+    - **Allowed Hosts**: Open `configmap.yml` and add your Minikube IP (find via `minikube ip`) to `DJANGO_ALLOWED_HOSTS`.
+    - **Secrets**: Open `secret.yml` and add your Base64-encoded `GEOAPIFY_API_KEY`.
+
+5.  **Deploy the Application:**
+
+    Run the automated deployment and verification script.
+
+    ```bash
+    ./deploy-to-dev.sh
+    ```
+
+6.  **Access the Application:**
+
+    The script will output the IP address at the end. Open your browser and navigate to `http://<MINIKUBE_IP>`.
