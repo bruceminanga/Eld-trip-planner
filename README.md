@@ -27,51 +27,6 @@ This isn't just another CRUD app—it's a battle-tested solution that addresses 
 
 ---
 
-## 🏗️ System Architecture
-
-Our three-tier, cloud-native architecture is designed for scale, reliability, and maintainability:
-
-```mermaid
-graph TB
-    subgraph "Client Layer"
-        Browser["🌐 React SPA<br/>Interactive Maps & Real-time Updates"]
-    end
-
-    subgraph "Kubernetes Cluster"
-        subgraph "Ingress Layer"
-            Ingress["⚡ Nginx Ingress<br/>Load Balancing & SSL Termination"]
-        end
-
-        subgraph "Application Layer"
-            Frontend["🎨 Frontend Service<br/>React + Vite + Tailwind"]
-            Backend["🔧 Backend Service<br/>Django REST + Gunicorn"]
-        end
-
-        subgraph "Data Layer"
-            Database["🗄️ PostgreSQL<br/>StatefulSet with Persistent Storage"]
-        end
-    end
-
-    Browser --> Ingress
-    Ingress --> Frontend
-    Ingress --> Backend
-    Backend --> Database
-
-    style Browser fill:#e1f5fe
-    style Frontend fill:#f3e5f5
-    style Backend fill:#e8f5e8
-    style Database fill:#fff3e0
-```
-
-**Why This Architecture?**
-
-- **Scalability:** Each component can scale independently
-- **Reliability:** Zero-downtime deployments with rolling updates
-- **Security:** Network policies and ingress-level traffic control
-- **Observability:** Centralized logging and monitoring ready
-
----
-
 ## ✨ Feature Showcase
 
 ### 🎯 User-Facing Features
@@ -96,7 +51,7 @@ graph TB
 
 | Layer              | Technologies                                             |
 | ------------------ | -------------------------------------------------------- |
-| **Frontend**       | React 18, TypeScript, Vite, Tailwind CSS, MapLibre GL JS |
+| **Frontend**       | React 18, Vite, Tailwind CSS, MapLibre GL JS             |
 | **Backend**        | Python 3.11, Django 4.2, Django REST Framework, Gunicorn |
 | **Database**       | PostgreSQL 15 with optimized queries and indexing        |
 | **DevOps**         | Docker, Kubernetes, Nginx, GitHub Actions                |
@@ -255,25 +210,3 @@ We welcome contributions! Whether you're fixing bugs, adding features, or improv
 3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
 4. **Push** to the branch (`git push origin feature/amazing-feature`)
 5. **Open** a Pull Request
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🎯 Why This Project Matters
-
-In an industry where compliance violations cost billions annually, this application demonstrates how modern technology can solve real-world problems while showcasing enterprise-grade engineering practices. It's more than code—it's a blueprint for building scalable, maintainable cloud-native applications.
-
-**Ready to explore the future of trucking technology and cloud engineering?**
-
-[🚀 **Start Your Journey**](#-quick-start-guide) | [🐛 **Report Issues**](https://github.com/bruceminanga/Eld-trip-planner/issues) | [💬 **Join the Discussion**](https://github.com/bruceminanga/Eld-trip-planner/discussions)
-
----
-
-<p align="center">
-  <strong>Built with ❤️ by developers who believe in the power of great code to solve real problems.</strong>
-</p>
