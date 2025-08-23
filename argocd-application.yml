@@ -1,0 +1,25 @@
+# argocd-application.yml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eld-trip-planner
+  namespace: argocd # This application resource lives in the argocd namespace
+spec:
+  project: default
+
+  source:
+    # IMPORTANT: Change this to your GitHub repository URL
+    repoURL: https://github.com/bruceminanga/Eld-trip-planner.git
+    targetRevision: HEAD # Track the latest commit on the target branch
+    path: kubernetes/overlays/development # Tell Argo to look in this specific directory
+
+  destination:
+    server: https://kubernetes.default.svc # This means the local cluster where Argo is running
+    namespace: eld-trip-planner # Deploy the manifests into this namespace
+
+  syncPolicy:
+    automated:
+      prune: true # Delete resources that are no longer in Git
+      selfHeal: true # Automatically correct any manual changes made to the cluster
+    syncOptions:
+      - CreateNamespace=true # Automatically create the destination namespace if it doesn't exist
