@@ -1,0 +1,30 @@
+# FILE: kubernetes/base/vault-dev.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault
+  labels:
+    app: vault
+spec:
+  containers:
+    - name: vault
+      image: hashicorp/vault:latest
+      # Run Vault in dev mode with a known root token for simplicity
+      args: ["server", "-dev", "-dev-root-token-id=root"]
+      ports:
+        - containerPort: 8200
+      securityContext:
+        capabilities:
+          # Required for Vault to lock memory
+          add: ["IPC_LOCK"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+spec:
+  selector:
+    app: vault
+  ports:
+    - port: 8200
+      targetPort: 8200

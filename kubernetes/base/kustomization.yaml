@@ -12,3 +12,4 @@ resources:
   - postgres-service.yml
   - postgres-statefulset.yml
   - migration-job.yml
+  - vault-dev.yaml

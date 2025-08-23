@@ -31,6 +31,11 @@ kubectl delete job django-migrations -n "$NAMESPACE" --ignore-not-found=true
 print_header "Applying all Kubernetes configurations from the development overlay"
 # Apply everything using Kustomize. This creates/updates all resources.
 kubectl apply -k kubernetes/overlays/development/
+print_header "Waiting for Kubernetes API to register new resources..."
+# We add a 10-second delay. This is a pragmatic way to solve the race condition
+# where the script continues before the API server has fully processed the CRDs
+# created by the Helm chart.
+sleep 10
 
 
 # --- 2. VERIFICATION PHASE ---

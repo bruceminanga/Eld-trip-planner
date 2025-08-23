@@ -5,8 +5,9 @@ kind: Kustomization
 resources:
   - ../../base
   - configmap.yml
-  - secret.yml
   - ingress.yml
+  - secret-store.yaml
+  - external-secret.yml
 
 images:
   - name: bruceminanga/eld-trip-planner-backend
