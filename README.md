@@ -150,16 +150,7 @@ This project emerged from solving real DevOps challenges that every cloud engine
 
 ---
 
-## 📊 Performance & Monitoring
-
-### Key Metrics
-
-- **Response Time:** < 200ms for route calculations
-- **Throughput:** 1000+ requests/minute per pod
-- **Availability:** 99.9% uptime with health checks
-- **Storage:** Efficient PostgreSQL queries with sub-10ms response times
-
-### Observability Stack (Ready to Deploy)
+## Observability Stack (Ready to Deploy)
 
 ```bash
 # Add monitoring to your cluster
@@ -169,44 +160,8 @@ helm install monitoring prometheus-community/kube-prometheus-stack
 
 ---
 
-## 🛣️ Roadmap to Production
+## 📈 Future Improvements
 
-### Phase 1: Enhanced Observability
-
-- [ ] Prometheus metrics collection
-- [ ] Grafana dashboards
-- [ ] Distributed tracing with Jaeger
-- [ ] Centralized logging with ELK stack
-
-### Phase 2: Security Hardening
-
-- [ ] HashiCorp Vault for secrets management
-- [ ] Network policies for pod isolation
-- [ ] RBAC implementation
-- [ ] Security scanning in CI/CD
-
-### Phase 3: Cloud Migration
-
-- [ ] Terraform infrastructure as code
-- [ ] AWS EKS / GKE deployment
-- [ ] GitOps with ArgoCD
-- [ ] Multi-environment promotion
-
-### Phase 4: Advanced Features
-
-- [ ] Real-time WebSocket updates
-- [ ] Machine learning route optimization
-- [ ] Multi-tenant architecture
-- [ ] API rate limiting and caching
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Whether you're fixing bugs, adding features, or improving documentation:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
+- [ ] **Full GitOps Integration:** Add Argo CD to automatically synchronize the cluster state with this Git repository.
+- [ ] **Cloud Deployment:** Create Terraform scripts to provision a managed Kubernetes cluster on a cloud provider (e.g., AWS EKS) and deploy the application.
+- [ ] **Advanced Security:** Implement NetworkPolicies to restrict pod-to-pod traffic and manage secrets with an external provider like HashiCorp Vault.
