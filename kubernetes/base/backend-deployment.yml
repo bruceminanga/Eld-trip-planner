@@ -17,7 +17,7 @@ spec:
       containers:
         - name: backend
           image: bruceminanga/eld-trip-planner-backend
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           # THIS IS THE SINGLE, CORRECT envFrom BLOCK
