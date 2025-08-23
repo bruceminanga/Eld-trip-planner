@@ -13,18 +13,6 @@ A full-stack web application built with a Django backend and React frontend, arc
 
 The primary goal of this repository is to showcase a robust and repeatable DevOps architecture while solving real-world trucking industry compliance challenges.
 
-> **🎯 Perfect for DevOps Portfolio Reviews**: This project demonstrates enterprise-grade deployment patterns, infrastructure as code, and cloud-native architecture principles.
-
-<br>
-
-<p align="center">
-  <a href="http://<YOUR_MINIKUBE_IP>">
-    <img src="./screenshot.png" alt="Application Screenshot" width="80%">
-  </a>
-</p>
-
-<br>
-
 ---
 
 ## 📋 Table of Contents
