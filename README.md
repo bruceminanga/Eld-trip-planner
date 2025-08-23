@@ -9,11 +9,19 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License"/>
 </p>
 
-A full-stack web application built with a Django backend and React frontend, architected for a complete, cloud-native deployment lifecycle. This project demonstrates modern DevOps principles, from containerized local development to a production-ready, orchestrated deployment on Kubernetes using Kustomize.
+A full-stack web application built with a Django backend and React frontend, architected for a complete, cloud-native deployment lifecycle. This project demonstrates modern DevOps principles, from containerized local development to a production-ready, orchestrated deployment on Kubernetes using Kustomize and an enterprise-grade secrets management workflow.
 
 The primary goal of this repository is to showcase a robust and repeatable DevOps architecture while solving real-world trucking industry compliance challenges.
 
 > **🎯 Perfect for DevOps Portfolio Reviews**: This project demonstrates enterprise-grade deployment patterns, infrastructure as code, and cloud-native architecture principles.
+
+<br>
+
+<p align="center">
+  <a href="http://<YOUR_MINIKUBE_IP>">
+    <img src="./screenshot.png" alt="Application Screenshot" width="80%">
+  </a>
+</p>
 
 <br>
 
@@ -27,10 +35,7 @@ The primary goal of this repository is to showcase a robust and repeatable DevOp
 - [🛠️ Technology Stack](#️-technology-stack)
 - [🚀 Getting Started](#-getting-started)
 - [📁 Project Structure](#-project-structure)
-- [🔧 Configuration Management](#-configuration-management)
-- [🧪 Testing & Quality Assurance](#-testing--quality-assurance)
 - [📈 Future Improvements](#-future-improvements)
-- [🤝 Contributing](#-contributing)
 
 ---
 
@@ -39,17 +44,17 @@ The primary goal of this repository is to showcase a robust and repeatable DevOp
 ### 🚛 Trucking Industry Solutions
 
 - 📍 **Intelligent Route Planning**: Calculates optimized driving routes between multiple locations using the Geoapify API
-- ⏱️ **Automated HOS Compliance**: Automatically inserts mandatory 30-minute rest breaks and fuel stops based on Hours of Service regulations
+- ⏱️ **Automated HOS Compliance**: Automatically inserts mandatory 30-minute rest breaks based on Hours of Service regulations
 - 🗺️ **Interactive Map Visualization**: Displays the full trip, stops, and segments on a dynamic MapLibre GL JS map
 - 📑 **Predictive ELD Log Generation**: Creates a complete, predicted daily log (On Duty, Driving, Off Duty) based on the generated trip plan
 - 📊 **Data Visualization & Export**: Displays the ELD log with a 24-hour timeline graph and allows exporting to JSON, CSV, and PDF
 
 ### 🔧 Technical Excellence
 
-- 🌐 **Full-Stack Architecture**: Decoupled React frontend with Django REST API backend
-- 🔒 **Security First**: External secret management, environment isolation, and secure container practices
-- 📦 **Cloud-Native Design**: Stateless services, health checks, and horizontal scalability
-- 🔄 **CI/CD Ready**: Automated deployment scripts and infrastructure as code
+- 🌐 **Full-Stack Architecture**: Decoupled React frontend with a Django REST API backend
+- 🔒 **Enterprise-Grade Security**: Secrets are managed externally in HashiCorp Vault and dynamically injected into the cluster via the External Secrets Operator
+- 📦 **Cloud-Native Design**: Stateless services architected for resilience and scalability
+- 🔄 **CI/CD Ready**: An automated deployment script (`./deploy-to-dev.sh`) provides the foundation for a full CI/CD pipeline
 
 ---
 
@@ -59,92 +64,171 @@ This project is meticulously structured to demonstrate modern, scalable, and mai
 
 ### 🐳 Containerization with Docker
 
-The entire application stack (Frontend, Backend, Database) is fully containerized, ensuring perfect consistency between all environments.
+The entire application stack is fully containerized, ensuring perfect consistency between all environments.
 
-- **Multi-Environment Strategy**: Separate Dockerfiles for development (hot-reloading via Vite) and production (multi-stage builds with Nginx)
-- **Security & Optimization**: Multi-stage builds create minimal attack surface with optimized image sizes
-- **Development Experience**: Docker Compose setup enables instant local development with full stack
+- **Multi-Environment Strategy**: Separate Dockerfiles for development (with hot-reloading) and production (lean, multi-stage builds served by Nginx)
+- **Security & Optimization**: Multi-stage builds create minimal, secure images by excluding build-time dependencies from the final image
 
 ### ☸️ Orchestration with Kubernetes
 
-Production-ready Kubernetes deployment with enterprise patterns and best practices.
+The application is defined declaratively for a resilient, self-healing deployment.
 
-- **Resilient Architecture**: Deployments for stateless services, StatefulSets for persistent data
-- **Advanced Networking**: Ingress controllers with path-based routing and SSL termination ready
-- **Resource Management**: CPU/memory limits, requests, and horizontal pod autoscaling configuration
-- **Health & Monitoring**: Liveness and readiness probes ensure self-healing capabilities
+- **High-Level Objects**: Utilizes Deployments for stateless services, a StatefulSet with a PersistentVolumeClaim for the database, and Services for stable internal networking
+- **Advanced Traffic Management**: A robust, dual-Ingress configuration cleanly separates routing logic for the frontend and the API, preventing rule conflicts
 
 ### ⚙️ Configuration Management with Kustomize
 
-Environment-specific configuration without YAML duplication.
+To avoid repetitive and error-prone YAML, the project employs a Kustomize base and overlay structure.
 
-- **Base + Overlay Pattern**: Generic base configurations with environment-specific overlays
-- **GitOps Ready**: Declarative configuration management supporting multiple environments
-- **Secret Management**: External secrets integration with HashiCorp Vault for sensitive data
-- **Immutable Deployments**: Configuration changes trigger controlled rollouts
+- **DRY Principle**: The `base` directory contains the generic, structural definition of the application
+- **Environment-Specific Overlays**: The `overlays/development` directory contains only the specific configurations (e.g., ConfigMaps with `DEBUG=True`, Ingress rules, and image tags), providing a single source of truth for each environment
 
-### 🚀 Automated Deployment Pipeline
+### 🔒 Secure GitOps with External Secrets Operator (ESO)
 
-The `./deploy-to-dev.sh` script demonstrates CI/CD automation principles.
+This project implements the industry-best-practice for secrets management in a GitOps workflow.
 
-- **Job Lifecycle Management**: Handles Kubernetes Job immutability for database migrations
-- **Health Verification**: Automated rollout status checks and application health validation
-- **Rollback Capability**: Failed deployments can be quickly reverted
-- **Smoke Testing**: Post-deployment verification ensures application functionality
+- **No Secrets in Git**: The Git repository contains zero secret material, encrypted or otherwise
+- **Single Source of Truth**: Secrets are stored in an external provider (simulated with an in-cluster Vault dev server)
+- **Declarative Pointers**: The Git repository contains a safe ExternalSecret manifest that acts as a pointer, telling the in-cluster operator where to fetch the real secrets
 
 ---
 
 ## 🧠 Challenges Solved & Lessons Learned
 
-Real-world DevOps problems encountered and solved during development.
+This project was a journey through real-world DevOps problems, providing invaluable hands-on experience.
 
-### 🔀 Ingress Traffic Routing Mastery
+### 🔀 Mastering Ingress Routing
 
-**Challenge**: Complex `404 Not Found` errors with mixed frontend/backend traffic
-**Solution**: Implemented path-based routing with proper URL rewrites and separate Ingress resources
-**Learning**: Microservices require careful traffic management and service mesh considerations
+**Challenge**: Diagnosed and fixed a series of `404 Not Found` errors by evolving the Ingress configuration  
+**Solution**: Implemented correct URL rewrite rules (`rewrite-target`) and split the configuration into two separate Ingress resources to isolate the frontend and API routing logic
 
-### 🔄 Kubernetes Job Management
+### 🔄 Solving the Immutable Job Problem
 
-**Challenge**: Database migration Jobs are immutable and can't be updated in-place
-**Solution**: Automated Job deletion and recreation workflow in deployment scripts
-**Learning**: Understanding Kubernetes resource lifecycle is crucial for automation
+**Challenge**: Understanding the fundamental difference between a Deployment and a Job in Kubernetes  
+**Solution**: Developed the correct, repeatable workflow of deleting and reapplying the migration Job via an automated script to handle database schema changes reliably
 
-### 🌍 Environment Configuration Propagation
+### 🐛 Debugging the Full Stack
 
-**Challenge**: Django `DisallowedHost` errors despite correct ConfigMap updates
-**Solution**: Traced configuration lifecycle from ConfigMap → Pod → Application startup
-**Learning**: Configuration changes require Pod restarts and proper deployment rollout verification
+**Challenge**: Traced a single user request from the browser, through the Kubernetes Ingress and Service layers, to the Django application, and finally to the database  
+**Solution**: Systematically debugged issues at each step (browser cache, Kustomize configs, Docker builds, and database migrations)
 
-### 🏗️ Multi-Stage Build Optimization
+### ⚡ Resolving Operator Race Conditions
 
-**Challenge**: Development Dockerfile unsuitable for production Kubernetes deployment
-**Solution**: Created optimized production Dockerfile with Nginx serving static assets
-**Learning**: Different environments require different optimization strategies
+**Challenge**: Overcame a frustrating deployment failure by identifying a race condition between the Helm installation of an operator and the kubectl apply command  
+**Solution**: Implemented the `helm install --wait` flag and added a sleep command to the deployment script, demonstrating a deep understanding of Kubernetes' asynchronous nature
 
 ---
 
 ## 🛠️ Technology Stack
 
-### Core Application
+| Category           | Technology                                       |
+| :----------------- | :----------------------------------------------- |
+| **Backend**        | Python, Django, Django REST Framework            |
+| **Frontend**       | React, Vite, Tailwind CSS, MapLibre GL JS, Axios |
+| **Database**       | PostgreSQL                                       |
+| **DevOps & Infra** | Docker, Kubernetes, Kustomize, Helm, Nginx, Bash |
+| **Security**       | External Secrets Operator (ESO), HashiCorp Vault |
+| **APIs**           | Geoapify (Geocoding, Routing, Map Tiles)         |
 
-| Layer        | Technology                                          |
-| :----------- | :-------------------------------------------------- |
-| **Frontend** | React 18, Vite, Tailwind CSS, MapLibre GL JS, Axios |
-| **Backend**  | Python 3.11, Django 4.2, Django REST Framework      |
-| **Database** | PostgreSQL 15 with persistent volumes               |
-| **APIs**     | Geoapify (Geocoding, Routing, Map Tiles)            |
+---
 
-### DevOps & Infrastructure
+## 🚀 Getting Started
 
-| Category             | Technology                                     |
-| :------------------- | :--------------------------------------------- |
-| **Containerization** | Docker, Docker Compose, Multi-stage builds     |
-| **Orchestration**    | Kubernetes, Minikube, kubectl                  |
-| **Configuration**    | Kustomize, ConfigMaps, Secrets                 |
-| **Security**         | External Secrets, HashiCorp Vault, RBAC        |
-| **Networking**       | Ingress Controllers, Services, NetworkPolicies |
-| **Automation**       | Bash scripting, kubectl, CI/CD ready           |
+### Prerequisites
+
+- Docker & Docker Compose
+- Minikube
+- kubectl
+- Helm
+
+### 🏠 1. Local Development (for Coding)
+
+This is the fastest way to run the application for coding, with hot-reloading enabled.
+
+1. **Clone & Setup Environment:**
+
+   ```bash
+   git clone https://github.com/bruceminanga/Eld-trip-planner.git
+   cd Eld-trip-planner
+   cp .env.example .env.dev
+   ```
+
+   Now, open `.env.dev` and add your `GEOAPIFY_API_KEY` and a `DJANGO_SECRET_KEY`.
+
+2. **Run with Docker Compose:**
+
+   ```bash
+   docker-compose up --build
+   ```
+
+3. **Access:** The app is at `http://localhost:5173`.
+
+### ☸️ 2. Kubernetes Deployment (for Integration)
+
+This deploys the application to a local Kubernetes cluster, simulating a real-world, secure DevOps workflow.
+
+1. **Start Minikube & Enable Ingress:**
+
+   ```bash
+   minikube start --memory 4096 --cpus 4
+   minikube addons enable ingress
+   ```
+
+2. **Build Production Images:**
+
+   ```bash
+   # Build the backend image
+   docker build -t your-dockerhub-username/eld-trip-planner-backend:0.4 -f backend/Dockerfile .
+
+   # Build the frontend image
+   docker build -t your-dockerhub-username/eld-trip-planner-frontend:0.5 -f frontend/Dockerfile.prod frontend/
+   ```
+
+3. **Load Images into Minikube:**
+
+   ```bash
+   minikube image load your-dockerhub-username/eld-trip-planner-backend:0.4
+   minikube image load your-dockerhub-username/eld-trip-planner-frontend:0.5
+   ```
+
+4. **Install & Configure External Secrets:**
+
+   This one-time setup installs the operator and creates secrets in the in-cluster Vault.
+
+   ```bash
+   # Install the operator and wait for it to be ready
+   helm repo add external-secrets https://charts.external-secrets.io && helm repo update
+   helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace --wait
+
+   # Apply the base which includes the Vault pod
+   kubectl apply -k kubernetes/base/
+
+   # Wait for Vault to start
+   echo "Waiting for Vault pod to be ready..."
+   kubectl wait --for=condition=ready pod/vault --timeout=120s
+
+   # Exec into Vault and create the secrets
+   kubectl exec -it vault -- sh -c 'export VAULT_ADDR="http://127.0.0.1:8200" && export VAULT_TOKEN="root" && vault kv put secret/eld-trip-planner GEOAPIFY_API_KEY="your-real-key" SECRET_KEY="your-django-secret"'
+   ```
+
+5. **Configure the development Overlay:**
+
+   All configuration is managed in `kubernetes/overlays/development/`.
+
+   - **Image Tags**: Open `kustomization.yaml` and ensure the `newTag` values match the tags you just built
+   - **Allowed Hosts**: Open `configmap.yml` and add your Minikube IP (find via `minikube ip`) to `DJANGO_ALLOWED_HOSTS`
+
+6. **Deploy the Application:**
+
+   Run the automated deployment and verification script.
+
+   ```bash
+   ./deploy-to-dev.sh
+   ```
+
+7. **Access the Application:**
+
+   The script will output the IP address at the end. Open your browser and navigate to `http://<MINIKUBE_IP>`.
 
 ---
 
@@ -153,269 +237,34 @@ Real-world DevOps problems encountered and solved during development.
 ```
 ELD-TRIP-PLANNER/
 ├── backend/                    # Django REST API
-│   ├── Dockerfile             # Development container
-│   ├── Dockerfile.prod        # Production optimized
-│   └── requirements.txt       # Python dependencies
 ├── frontend/                   # React application
-│   ├── Dockerfile.prod        # Production with Nginx
-│   └── package.json           # Node.js dependencies
 ├── kubernetes/                 # K8s manifests
-│   ├── base/                  # Base configurations
+│   ├── base/                  # Generic resource definitions
 │   │   ├── backend-deployment.yml
 │   │   ├── frontend-deployment.yml
-│   │   ├── postgres-pvc.yml
-│   │   └── postgres-statefulset.yml
-│   └── overlays/              # Environment-specific
-│       └── development/       # Dev environment
-│           ├── configmap.yml  # Environment variables
-│           ├── external-secret.yml  # Vault integration
-│           ├── ingress.yml    # Traffic routing
-│           └── kustomization.yml    # Overlay config
-├── deploy-to-dev.sh           # Automated deployment
-├── docker-compose.yml         # Local development
+│   │   ├── postgres-statefulset.yml
+│   │   ├── vault-dev.yaml
+│   │   └── kustomization.yaml
+│   └── overlays/              # Environment-specific configs
+│       └── development/
+│           ├── configmap.yml
+│           ├── external-secret.yml  # Pointer to Vault
+│           ├── secret-store.yml     # ESO configuration
+│           ├── ingress.yml
+│           └── kustomization.yaml
+├── deploy-to-dev.sh           # Automated deployment script
+├── docker-compose.yml         # Local development setup
 └── README.md                  # This file
 ```
 
 ---
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-Ensure you have these tools installed:
-
-```bash
-# Required tools
-- Docker & Docker Compose (v2.0+)
-- Minikube (v1.25+)
-- kubectl (v1.24+)
-
-# Verify installations
-docker --version
-docker-compose --version
-minikube version
-kubectl version --client
-```
-
-### 🏠 Option 1: Local Development (Recommended for Coding)
-
-Perfect for rapid development with hot-reloading and debugging.
-
-1. **Clone and Configure Environment:**
-
-   ```bash
-   git clone https://github.com/bruceminanga/Eld-trip-planner.git
-   cd Eld-trip-planner
-   cp .env.example .env.dev
-   ```
-
-2. **Add API Configuration:**
-
-   Edit `.env.dev` and add your Geoapify API key:
-
-   ```env
-   GEOAPIFY_API_KEY=your_api_key_here
-   ```
-
-3. **Start Development Stack:**
-
-   ```bash
-   docker-compose up --build
-   ```
-
-4. **Access Application:**
-   - Frontend: `http://localhost:5173`
-   - Backend API: `http://localhost:8000/api/`
-   - Admin Panel: `http://localhost:8000/admin/`
-
-### ☸️ Option 2: Kubernetes Deployment (Production Simulation)
-
-Demonstrates full production deployment workflow.
-
-1. **Initialize Kubernetes Environment:**
-
-   ```bash
-   # Start Minikube with adequate resources
-   minikube start --memory 4096 --cpus 4
-
-   # Enable required addons
-   minikube addons enable ingress
-   minikube addons enable metrics-server
-   ```
-
-2. **Build and Load Production Images:**
-
-   ```bash
-   # Build optimized production images
-   docker build -t your-username/eld-backend:latest -f backend/Dockerfile.prod backend/
-   docker build -t your-username/eld-frontend:latest -f frontend/Dockerfile.prod frontend/
-
-   # Load into Minikube (avoids registry push)
-   minikube image load your-username/eld-backend:latest
-   minikube image load your-username/eld-frontend:latest
-   ```
-
-3. **Configure Environment Variables:**
-
-   Update `kubernetes/overlays/development/`:
-
-   - `configmap.yml`: Add Minikube IP to `DJANGO_ALLOWED_HOSTS`
-   - `secret.yml`: Base64 encode your Geoapify API key
-   - `kustomization.yml`: Update image tags to match your builds
-
-4. **Deploy to Kubernetes:**
-
-   ```bash
-   # Run automated deployment with health checks
-   ./deploy-to-dev.sh
-
-   # Monitor deployment progress
-   kubectl get pods -w
-   ```
-
-5. **Access Production Environment:**
-
-   ```bash
-   # Get Minikube IP and access application
-   minikube ip
-   # Navigate to http://<MINIKUBE_IP>
-   ```
-
----
-
-## 🔧 Configuration Management
-
-### Environment Variables
-
-| Variable               | Description           | Required | Default        |
-| ---------------------- | --------------------- | -------- | -------------- |
-| `DEBUG`                | Django debug mode     | No       | `False`        |
-| `DJANGO_ALLOWED_HOSTS` | Allowed hostnames     | Yes      | `localhost`    |
-| `GEOAPIFY_API_KEY`     | API key for routing   | Yes      | -              |
-| `DATABASE_URL`         | PostgreSQL connection | No       | Auto-generated |
-
-### Secret Management
-
-The project uses external secrets for sensitive data:
-
-```yaml
-# kubernetes/overlays/development/external-secret.yml
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: eld-secrets
-spec:
-  secretStoreRef:
-    name: vault-backend
-    kind: SecretStore
-```
-
----
-
-## 🧪 Testing & Quality Assurance
-
-### Automated Health Checks
-
-The deployment includes comprehensive health verification:
-
-- **Liveness Probes**: Ensure containers are running
-- **Readiness Probes**: Verify services are accepting traffic
-- **Post-Deployment Testing**: Automated smoke tests validate functionality
-
-### Manual Testing Checklist
-
-- [ ] Frontend loads without console errors
-- [ ] API endpoints respond correctly
-- [ ] Database migrations complete successfully
-- [ ] Map visualization renders properly
-- [ ] Route planning generates valid results
-
----
-
 ## 📈 Future Improvements
 
-### Infrastructure Enhancements
-
-- [ ] **Helm Charts**: Replace Kustomize with Helm for templating
-- [ ] **GitOps Integration**: ArgoCD/FluxCD for automated deployments
-- [ ] **Monitoring Stack**: Prometheus, Grafana, and Alertmanager
-- [ ] **Service Mesh**: Istio for advanced traffic management
-- [ ] **Multi-Environment**: Staging and production overlays
-
-### Application Features
-
-- [ ] **Real-time Updates**: WebSocket integration for live trip tracking
-- [ ] **Mobile App**: React Native companion application
-- [ ] **Advanced Analytics**: Trip optimization and fuel efficiency metrics
-- [ ] **Integration APIs**: Connect with fleet management systems
-- [ ] **Offline Mode**: PWA capabilities for limited connectivity areas
-
-### Security & Compliance
-
-- [ ] **RBAC Implementation**: Role-based access control
-- [ ] **API Rate Limiting**: Protect against abuse
-- [ ] **Audit Logging**: Compliance and security monitoring
-- [ ] **Vulnerability Scanning**: Container and dependency security
-
----
-
-## 🤝 Contributing
-
-This project welcomes contributions! Here's how to get started:
-
-### Development Workflow
-
-1. **Fork and Clone**
-
-   ```bash
-   git clone https://github.com/your-username/Eld-trip-planner.git
-   cd Eld-trip-planner
-   ```
-
-2. **Create Feature Branch**
-
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-3. **Local Development**
-
-   ```bash
-   docker-compose up --build
-   ```
-
-4. **Test Your Changes**
-
-   - Run the application locally
-   - Test Kubernetes deployment
-   - Verify all health checks pass
-
-5. **Submit Pull Request**
-   - Include clear description of changes
-   - Reference any related issues
-   - Ensure CI checks pass
-
-### Code Standards
-
-- **Python**: Follow PEP 8 styling guidelines
-- **JavaScript**: Use ESLint and Prettier configurations
-- **Docker**: Multi-stage builds for production images
-- **Kubernetes**: Follow security and resource best practices
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- **Geoapify** for routing and mapping services
-- **Kubernetes Community** for excellent documentation
-- **Django & React Teams** for robust frameworks
-- **DevOps Community** for sharing best practices
+- **CI/CD Pipeline**: Automate the entire build, test, and deploy process using GitHub Actions
+- **Monitoring & Logging**: Integrate Prometheus and Grafana for monitoring application metrics and Loki for centralized log aggregation
+- **GitOps Integration**: Add Argo CD to automatically synchronize the cluster state with the Git repository
+- **Create a Production Overlay**: Build out a `kubernetes/overlays/production` directory with production-ready settings (DEBUG=False, higher replica counts, real Vault backend, etc.)
 
 ---
 
