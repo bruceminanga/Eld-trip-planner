@@ -10,6 +10,9 @@ on:
   push:
     branches:
       - master
+  permissions:
+    # Give the default GITHUB_TOKEN write permission to commit and push the changed manifests.
+    contents: write
 
 jobs:
   # ===============================================
