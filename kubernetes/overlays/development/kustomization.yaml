@@ -11,6 +11,6 @@ resources:
 
 images:
   - name: bruceminanga/eld-trip-planner-backend
-    newTag: "0.4" # <-- The quotes make this a STRING
+    newTag: latest
   - name: bruceminanga/eld-trip-planner-frontend
-    newTag: "0.5" # <-- The quotes make this a STRING
+    newTag: latest
