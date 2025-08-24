@@ -86,3 +86,46 @@ jobs:
           file: ./frontend/Dockerfile.prod
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/eld-trip-planner-frontend:latest,${{ secrets.DOCKERHUB_USERNAME }}/eld-trip-planner-frontend:${{ github.sha }}
+  # =========================================================
+  # JOB3: Update Manifests in Git (The CD Trigger)
+  # =========================================================
+  update-manifests:
+    # This job only runs on a push to master, AND it needs the build job to succeed first
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: cd-build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          # We need a token to be able to push back to the repository
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Update Backend Image Tag
+        run: |
+          cd kubernetes/overlays/development
+          kustomize edit set image yourusername/eld-trip-planner-backend=yourusername/eld-trip-planner-backend:${{ github.sha }}
+
+      - name: Update Frontend Image Tag
+        run: |
+          cd kubernetes/overlays/development
+          kustomize edit set image yourusername/eld-trip-planner-frontend=yourusername/eld-trip-planner-frontend:${{ github.sha }}
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add kubernetes/overlays/development/kustomization.yaml
+          # Check if there are any changes to commit
+          if ! git diff --staged --quiet; then
+            git commit -m "ci: Update image tags to ${{ github.sha }}"
+            git push
+          else
+            echo "No image tag changes to commit."
+          fi
