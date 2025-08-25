@@ -16,7 +16,7 @@ images:
   newTag: latest
 - name: yourusername/eld-trip-planner-backend
   newName: yourusername/eld-trip-planner-backend
-  newTag: c918ee72ba5d529295f6639df66bcce4545768b8
+  newTag: 14cd1c9ef8709da833b9aaf920ab55b69df50bce
 - name: yourusername/eld-trip-planner-frontend
   newName: yourusername/eld-trip-planner-frontend
-  newTag: c918ee72ba5d529295f6639df66bcce4545768b8
+  newTag: 14cd1c9ef8709da833b9aaf920ab55b69df50bce
