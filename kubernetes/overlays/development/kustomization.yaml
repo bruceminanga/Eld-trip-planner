@@ -21,3 +21,25 @@ images:
 - name: yourusername/eld-trip-planner-frontend
   newName: yourusername/eld-trip-planner-frontend
   newTag: 7e27e7b10dbfbad626f045a2ff9e5f26dd4280b1
+# FILE: kubernetes/overlays/development/kustomization.yml (CORRECTED)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# CORRECT: Use 'bases' to inherit from the base directory.
+bases:
+  - ../../base
+
+# CORRECT: Use 'resources' to list additional manifests for THIS overlay.
+resources:
+  - configmap.yml
+  - ingress.yml
+  - secret-store.yml
+  - external-secret.yml
+
+# CLEANED UP: Use this section to set the image tags for this environment.
+# 'latest' is fine for development.
+images:
+  - name: bruceminanga/eld-trip-planner-backend
+    newTag: latest
+  - name: bruceminanga/eld-trip-planner-frontend
+    newTag: latest
