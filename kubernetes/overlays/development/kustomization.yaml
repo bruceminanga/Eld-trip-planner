@@ -3,14 +3,20 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../base
-  - configmap.yml
-  - ingress.yml
-  - secret-store.yaml
-  - external-secret.yml
+- ../../base
+- configmap.yml
+- ingress.yml
+- secret-store.yaml
+- external-secret.yml
 
 images:
-  - name: bruceminanga/eld-trip-planner-backend
-    newTag: latest
-  - name: bruceminanga/eld-trip-planner-frontend
-    newTag: latest
+- name: bruceminanga/eld-trip-planner-backend
+  newTag: latest
+- name: bruceminanga/eld-trip-planner-frontend
+  newTag: latest
+- name: yourusername/eld-trip-planner-backend
+  newName: yourusername/eld-trip-planner-backend
+  newTag: 0cf897ef91f82234385ae0cec6866e82bb5c0aee
+- name: yourusername/eld-trip-planner-frontend
+  newName: yourusername/eld-trip-planner-frontend
+  newTag: 0cf897ef91f82234385ae0cec6866e82bb5c0aee
