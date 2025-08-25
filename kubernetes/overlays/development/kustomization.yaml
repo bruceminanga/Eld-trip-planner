@@ -1,20 +1,19 @@
-# FILE: kubernetes/overlays/development/kustomization.yml (CORRECTED)
+# FILE: kubernetes/overlays/development/kustomization.yaml (FINAL CORRECTED VERSION)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# CORRECT: Use 'bases' to inherit from the base directory.
+# Keep YOUR fix for the 'bases' keyword
 bases:
   - ../../base
 
-# CORRECT: Use 'resources' to list additional manifests for THIS overlay.
+# Keep YOUR list of resources with the corrected filename
 resources:
   - configmap.yml
   - ingress.yml
   - secret-store.yaml
   - external-secret.yml
 
-# CLEANED UP: Use this section to set the image tags for this environment.
-# 'latest' is fine for development.
+# Keep the BOT'S updated image tags
 images:
   - name: bruceminanga/eld-trip-planner-backend
     newTag: latest
