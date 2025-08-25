@@ -10,7 +10,7 @@ bases:
 resources:
   - configmap.yml
   - ingress.yml
-  - secret-store.yml
+  - secret-store.yaml
   - external-secret.yml
 
 # CLEANED UP: Use this section to set the image tags for this environment.
