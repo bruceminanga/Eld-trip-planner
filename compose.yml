@@ -1,0 +1,169 @@
+name: eld-trip-planner
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    env_file:
+      - backend/.env
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: backend/
+      dockerfile: Dockerfile
+    entrypoint: []   # ◄── 1. Clears the default entrypoint
+    command:
+      [
+        "/usr/bin/python3",                                 # ◄── 2. Run python directly
+        "/opt/site-packages/bin/opentelemetry-instrument",  # ◄── 3. Exact path to the script
+        "python3",
+        "manage.py",
+        "runserver",
+        "0.0.0.0:8000",
+      ]
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DEBUG=1
+      - DJANGO_DEBUG=True
+      - ALLOWED_HOSTS=*
+      - DJANGO_ALLOWED_HOSTS=*
+      - OTEL_SERVICE_NAME=django-backend
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=none
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy  
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/usr/bin/python3",
+          "-c",
+          "import socket; s = socket.create_connection(('127.0.0.1', 8000), timeout=2); s.close()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+      - public
+
+
+  frontend:
+    build:
+      context: frontend/
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5173:8080"
+    env_file:
+      - frontend/.env
+    volumes:
+      - ./frontend:/app # bind mount for hot-reload
+      - /app/node_modules # anonymous volume so host doesn't overwrite installed deps
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - public
+
+  # ===================================================
+  # DevOps Observability Stack (Metrics + Traces)
+  # ===================================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    profiles: ["monitoring"]
+    privileged: true
+    security_opt:
+      - label=disable
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - public
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    profiles: ["monitoring"]
+    ports:
+      - "9100:9100"
+    networks:
+      - public
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    profiles: ["monitoring"]
+    user: "root"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:Z
+    networks:
+      - public
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: ["-config.file=/etc/tempo.yml"]
+    profiles: ["monitoring"]
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:Z
+    ports:
+      - "3200:3200" # Tempo web query
+      - "4318:4318" # OTLP HTTP receiver
+    networks:
+      - public
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    profiles: ["monitoring"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana # Saves dashboards and data sources permanently
+    networks:
+      - public
+
+networks:
+  internal:
+    internal: true # db is unreachable from outside this network
+  public:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  grafana_data:

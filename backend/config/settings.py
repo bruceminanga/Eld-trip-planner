@@ -24,14 +24,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 
-SECRET_KEY = config("SECRET_KEY")
+SECRET_KEY = config("SECRET_KEY", default="django-insecure-dev-fallback-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=False, cast=bool)
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = config(
-    "DJANGO_ALLOWED_HOSTS", default="127.0.0.1,localhost", cast=Csv()
-)
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '*').split(',') if host.strip()]
 
 
 # Application definition
@@ -116,8 +114,11 @@ WSGI_APPLICATION = "config.wsgi.application"
 #     }
 # }
 
-DATABASES = {"default": dj_database_url.config(default=config("DATABASE_URL"))}
-
+DATABASES = {
+    "default": dj_database_url.config(
+        default=config("DATABASE_URL", default="postgres://postgres:postgres@db:5432/postgres")
+    )
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

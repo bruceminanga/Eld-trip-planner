@@ -1,60 +1,63 @@
-# syntax=docker/dockerfile:1
+ARG BUILDER_BASE=python:3.11-slim@sha256:9c900dea9e8fb7e16277c179b555cc72d29a352dbc33cff48ad5a0412fd5bfc7
+ARG RUNTIME_BASE=gcr.io/distroless/python3-debian12:nonroot@sha256:7d1042ce588ab97019fe95c24ffca7bc5a82ccdac572511d5e09bda4435c89c5
 
-# --- Stage 1: Build Stage ---
-FROM python:3.11.5-slim-bullseye AS builder
+# =============================================================================
+# STAGE 1 — builder
+# =============================================================================
+FROM ${BUILDER_BASE} AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ARG SOURCE_DATE_EPOCH
+
 WORKDIR /app
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    rm -f /etc/apt/apt.conf.d/docker-clean && \
-    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev
+ENV PYTHONHASHSEED=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip wheel --wheel-dir /app/wheels -r requirements.txt
+    pip install --target=/install -r requirements.txt
 
+# ◄── FIX 1: Rewrite pip's hardcoded shebang (#!/usr/local/bin/python) 
+#            to Distroless's Python path (#!/usr/bin/python3)
+RUN sed -i '1s|^#!.*|#!/usr/bin/python3|' /install/bin/* 2>/dev/null || true && \
+    chmod +x /install/bin/* 2>/dev/null || true
 
-# --- Stage 2: Final/Production Stage ---
-FROM python:3.11.5-slim-bullseye
+COPY . /app
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+RUN find /install /app -exec touch -h --date="@${SOURCE_DATE_EPOCH:-0}" {} +
+
+# =============================================================================
+# STAGE 2 — runtime (Distroless)
+# =============================================================================
+FROM ${RUNTIME_BASE} AS runtime
+
+ARG GIT_SHA=unknown
+ARG VERSION=1.0.0
+ARG MAINTAINER="bruce@bruceminanga.world"
+
 WORKDIR /app
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    rm -f /etc/apt/apt.conf.d/docker-clean && \
-    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends libpq5
+ENV PYTHONHASHSEED=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/opt/site-packages \
+    PATH="/opt/site-packages/bin:${PATH}"
 
-RUN addgroup --system app && adduser --system --group app && \
-    mkdir -p /app/staticfiles && \
-    chown -R app:app /app
+USER nonroot:nonroot
 
-# [COMBINED RUN COMMAND] Install and clean in the SAME layer so space is actually freed
-RUN --mount=type=bind,from=builder,source=/app/wheels,target=/wheels \
-    pip install --no-cache-dir /wheels/* && \
-    find /usr/local/lib/python3.11/site-packages/ -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true && \
-    find /usr/local/lib/python3.11/site-packages/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-
-COPY --chown=app:app . .
-
-USER app
-
-RUN SECRET_KEY=dummy-for-build-does-not-matter \
-    DATABASE_URL=sqlite:///dummy-for-build.db \
-    python manage.py collectstatic --noinput
+COPY --chown=nonroot:nonroot --from=builder /install /opt/site-packages
+COPY --chown=nonroot:nonroot --from=builder /app /app
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD ["python", "healthcheck.py"]
+# ◄── FIX 2: Reset ENTRYPOINT so binaries like opentelemetry-instrument 
+#            and gunicorn execute directly from $PATH
+ENTRYPOINT []
 
-CMD ["gunicorn", "-c", "gunicorn.conf.py", "config.wsgi:application"]
+CMD ["gunicorn", "config.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "3", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30"]

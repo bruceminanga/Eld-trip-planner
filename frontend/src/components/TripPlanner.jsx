@@ -1,80 +1,69 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { tripService } from "../services/api"; // adjust path if needed
 
-import { tripService } from "../services/api"; // ADD THIS LINE (adjust path if needed)
+/**
+ * TripPlanner
+ * The three stops sit on one vertical rail (current -> pickup -> dropoff), so the
+ * form reads as the route itself. The cycle field shows hours remaining against
+ * the 70-hour limit. All Tailwind classes are static strings.
+ */
 
-// Simple SVG icons as components
-const LocationIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-indigo-500"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path
-      fillRule="evenodd"
-      d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-      clipRule="evenodd"
-    />
+const CYCLE_LIMIT = 70;
+
+const STOPS = [
+  {
+    name: "current_location",
+    label: "Current location",
+    placeholder: "e.g. Denver, CO",
+    error: "Enter where you are now",
+    autoComplete: "street-address",
+  },
+  {
+    name: "pickup_location",
+    label: "Pickup",
+    placeholder: "e.g. Salt Lake City, UT",
+    error: "Enter the pickup location",
+    autoComplete: "off",
+  },
+  {
+    name: "dropoff_location",
+    label: "Dropoff",
+    placeholder: "e.g. Portland, OR",
+    error: "Enter the dropoff location",
+    autoComplete: "off",
+  },
+];
+
+const FIELD_ORDER = [...STOPS.map((s) => s.name), "current_cycle_used"];
+
+const inputBase =
+  "block w-full rounded-lg border bg-white px-3.5 py-2.5 text-slate-900 placeholder:text-slate-400 " +
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1";
+
+const borderFor = (hasError) => (hasError ? "border-red-500" : "border-slate-300");
+
+const Spinner = () => (
+  <svg className="h-5 w-5 motion-safe:animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
   </svg>
 );
 
-const PickupIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-indigo-500"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-    <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7h1a1 1 0 011 1v6.05A2.5 2.5 0 0014 16.5h-1V7z" />
-  </svg>
-);
+const FieldError = ({ id, children }) =>
+  children ? (
+    <p id={id} className="mt-1.5 text-sm text-red-700">
+      {children}
+    </p>
+  ) : null;
 
-const DropoffIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-indigo-500"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path
-      fillRule="evenodd"
-      d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
-
-const ClockIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-indigo-500"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path
-      fillRule="evenodd"
-      d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
-
-const RouteIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-8 w-8"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path
-      fillRule="evenodd"
-      d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
+// Cycle status drives both the bar colour and the helper text.
+const cycleStatus = (used) => {
+  const left = CYCLE_LIMIT - used;
+  if (left <= 10) return { bar: "bg-red-500", text: "text-red-700", note: "Very little time left in this cycle" };
+  if (left <= 30) return { bar: "bg-amber-500", text: "text-amber-700", note: "Plan rest stops carefully" };
+  return { bar: "bg-emerald-500", text: "text-emerald-700", note: "Plenty of hours available" };
+};
 
 const TripPlanner = () => {
   const [formData, setFormData] = useState({
@@ -83,292 +72,199 @@ const TripPlanner = () => {
     dropoff_location: "",
     current_cycle_used: "",
   });
-  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const formRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: value,
-    }));
-
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: null,
-      });
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name] || errors.form) {
+      setErrors((prev) => ({ ...prev, [name]: null, form: null }));
     }
   };
 
-  const validateForm = () => {
-    const newErrors = {};
+  const validate = () => {
+    const next = {};
+    STOPS.forEach(({ name, error }) => {
+      if (!formData[name].trim()) next[name] = error;
+    });
 
-    if (!formData.current_location.trim()) {
-      newErrors.current_location = "Current location is required";
+    const raw = formData.current_cycle_used;
+    const used = parseFloat(raw);
+    if (raw === "" || Number.isNaN(used)) {
+      next.current_cycle_used = "Enter the hours used in this cycle";
+    } else if (used < 0 || used > CYCLE_LIMIT) {
+      next.current_cycle_used = `Enter a number from 0 to ${CYCLE_LIMIT}`;
     }
 
-    if (!formData.pickup_location.trim()) {
-      newErrors.pickup_location = "Pickup location is required";
-    }
-
-    if (!formData.dropoff_location.trim()) {
-      newErrors.dropoff_location = "Dropoff location is required";
-    }
-
-    if (!formData.current_cycle_used) {
-      newErrors.current_cycle_used = "Current cycle used is required";
-    } else {
-      const cycleUsed = parseFloat(formData.current_cycle_used);
-      if (isNaN(cycleUsed) || cycleUsed < 0 || cycleUsed > 70) {
-        newErrors.current_cycle_used = "Must be between 0 and 70 hours";
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(next);
+    const firstBad = FIELD_ORDER.find((n) => next[n]);
+    if (firstBad) formRef.current?.elements[firstBad]?.focus();
+    return !firstBad;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) return;
+    if (isLoading || !validate()) return;
 
     setIsLoading(true);
-
     try {
-      const current_cycle_used = parseFloat(formData.current_cycle_used);
-
-      // Use the centralized service
       const newTrip = await tripService.createTrip({
-        ...formData,
-        current_cycle_used,
+        current_location: formData.current_location.trim(),
+        pickup_location: formData.pickup_location.trim(),
+        dropoff_location: formData.dropoff_location.trim(),
+        current_cycle_used: parseFloat(formData.current_cycle_used),
       });
-
-      // Navigate to result page with the new trip's ID
       navigate(`/result/${newTrip.id}`);
-    } catch (error) {
-      setErrors({
-        form: error.message || "Something went wrong",
-      });
+    } catch (err) {
+      setErrors({ form: err?.message || "We couldn't plan this trip. Check your connection and try again." });
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-      <div className="w-full max-w-lg">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-600 text-white mb-5">
-            <RouteIcon />
-          </div>
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
-            ELD Trip Planner
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Plan your route with automatic ELD compliance
-          </p>
-        </div>
+  const used = parseFloat(formData.current_cycle_used);
+  const validUsed = !Number.isNaN(used) && used >= 0 && used <= CYCLE_LIMIT;
+  const status = validUsed ? cycleStatus(used) : null;
+  const pct = validUsed ? (used / CYCLE_LIMIT) * 100 : 0;
 
-        <div className="bg-white rounded-xl shadow-xl overflow-hidden transition-all duration-300 hover:shadow-2xl">
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
+      <div className="w-full max-w-lg">
+        <header className="mb-8">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Plan a trip</h1>
+          <p className="mt-2 text-slate-600">
+            Enter your stops and cycle hours. We'll build the route and your daily logs, with required breaks included.
+          </p>
+        </header>
+
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          noValidate
+          className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8"
+        >
           {errors.form && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-              <div className="flex">
-                <p className="text-sm text-red-700">{errors.form}</p>
-              </div>
+            <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              {errors.form}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="p-8">
-            <div className="space-y-6">
-              <div>
-                <label
-                  htmlFor="current_location"
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1"
-                >
-                  <LocationIcon />
-                  Current Location
-                </label>
-                <input
-                  id="current_location"
-                  name="current_location"
-                  value={formData.current_location}
-                  onChange={handleChange}
-                  placeholder="Enter your current location"
-                  className={`w-full px-4 py-3 border ${
-                    errors.current_location
-                      ? "border-red-500"
-                      : "border-gray-300"
-                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200`}
-                />
-                {errors.current_location && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.current_location}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="pickup_location"
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1"
-                >
-                  <PickupIcon />
-                  Pickup Location
-                </label>
-                <input
-                  id="pickup_location"
-                  name="pickup_location"
-                  value={formData.pickup_location}
-                  onChange={handleChange}
-                  placeholder="Enter pickup location"
-                  className={`w-full px-4 py-3 border ${
-                    errors.pickup_location
-                      ? "border-red-500"
-                      : "border-gray-300"
-                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200`}
-                />
-                {errors.pickup_location && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.pickup_location}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="dropoff_location"
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1"
-                >
-                  <DropoffIcon />
-                  Dropoff Location
-                </label>
-                <input
-                  id="dropoff_location"
-                  name="dropoff_location"
-                  value={formData.dropoff_location}
-                  onChange={handleChange}
-                  placeholder="Enter dropoff location"
-                  className={`w-full px-4 py-3 border ${
-                    errors.dropoff_location
-                      ? "border-red-500"
-                      : "border-gray-300"
-                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200`}
-                />
-                {errors.dropoff_location && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.dropoff_location}
-                  </p>
-                )}
-              </div>
-
-              {/* Enhanced Current Cycle Used Field */}
-              <div>
-                <label
-                  htmlFor="current_cycle_used"
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2"
-                >
-                  <ClockIcon />
-                  Current Cycle Used
-                </label>
-
-                <div className="relative rounded-xl overflow-hidden shadow-sm border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
-                  <input
-                    id="current_cycle_used"
-                    name="current_cycle_used"
-                    value={formData.current_cycle_used}
-                    onChange={handleChange}
-                    type="number"
-                    min="0"
-                    max="70"
-                    step="0.5"
-                    placeholder="Hours used in current cycle"
-                    className="block w-full py-3 pl-4 pr-16 text-gray-700 border-0 focus:outline-none focus:ring-0 rounded-xl"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center justify-center px-4 bg-gray-50 border-l border-gray-200">
-                    <span className="text-gray-500 font-medium">hours</span>
-                  </div>
-                </div>
-
-                {errors.current_cycle_used && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.current_cycle_used}
-                  </p>
-                )}
-
-                <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                  <span>Min: 0h</span>
-                  <div className="w-full mx-2 h-1 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${
-                        parseFloat(formData.current_cycle_used || 0) > 60
-                          ? "bg-red-400"
-                          : parseFloat(formData.current_cycle_used || 0) > 40
-                          ? "bg-yellow-400"
-                          : "bg-green-400"
+          {/* Route rail */}
+          <ol className="relative space-y-6">
+            <span
+              aria-hidden="true"
+              className="absolute bottom-8 left-[11px] top-8 w-px border-l-2 border-dashed border-slate-300"
+            />
+            {STOPS.map((stop, i) => {
+              const err = errors[stop.name];
+              const isLast = i === STOPS.length - 1;
+              return (
+                <li key={stop.name} className="relative flex gap-4">
+                  <span
+                    aria-hidden="true"
+                    className={`relative z-10 mt-8 h-6 w-6 shrink-0 rounded-full border-4 border-white ring-2 ${isLast ? "bg-blue-600 ring-blue-600" : i === 0 ? "bg-slate-400 ring-slate-400" : "bg-white ring-blue-600"
                       }`}
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (parseFloat(formData.current_cycle_used || 0) / 70) *
-                            100
-                        )}%`,
-                      }}
-                    ></div>
+                  />
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor={stop.name} className="mb-1.5 block text-sm font-medium text-slate-700">
+                      {stop.label}
+                    </label>
+                    <input
+                      id={stop.name}
+                      name={stop.name}
+                      type="text"
+                      value={formData[stop.name]}
+                      onChange={handleChange}
+                      placeholder={stop.placeholder}
+                      autoComplete={stop.autoComplete}
+                      aria-invalid={err ? "true" : "false"}
+                      aria-describedby={err ? `${stop.name}-error` : undefined}
+                      className={`${inputBase} ${borderFor(err)}`}
+                    />
+                    <FieldError id={`${stop.name}-error`}>{err}</FieldError>
                   </div>
-                  <span>Max: 70h</span>
-                </div>
-              </div>
+                </li>
+              );
+            })}
+          </ol>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full py-4 px-6 rounded-lg text-white font-medium text-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-300 ${
-                  isLoading
-                    ? "bg-indigo-400 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                }`}
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Calculating route...
-                  </div>
-                ) : (
-                  "Plan Trip"
-                )}
-              </button>
+          {/* Cycle hours */}
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <label htmlFor="current_cycle_used" className="mb-1.5 block text-sm font-medium text-slate-700">
+              Hours used in current cycle
+            </label>
+            <div className="relative">
+              <input
+                id="current_cycle_used"
+                name="current_cycle_used"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max={CYCLE_LIMIT}
+                step="0.5"
+                value={formData.current_cycle_used}
+                onChange={handleChange}
+                placeholder="0"
+                aria-invalid={errors.current_cycle_used ? "true" : "false"}
+                aria-describedby={`cycle-help${errors.current_cycle_used ? " current_cycle_used-error" : ""}`}
+                className={`${inputBase} pr-16 tabular-nums ${borderFor(errors.current_cycle_used)}`}
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-slate-500">
+                hours
+              </span>
             </div>
-          </form>
-        </div>
+            <FieldError id="current_cycle_used-error">{errors.current_cycle_used}</FieldError>
 
-        <p className="text-center mt-6 text-gray-500 text-sm">
-          Optimizing your routes for maximum efficiency and ELD compliance
-        </p>
+            <div className="mt-3" id="cycle-help">
+              <div
+                className="h-2 overflow-hidden rounded-full bg-slate-100"
+                role="meter"
+                aria-label="Cycle hours used"
+                aria-valuemin={0}
+                aria-valuemax={CYCLE_LIMIT}
+                aria-valuenow={validUsed ? used : 0}
+              >
+                <div
+                  className={`h-full rounded-full ${status ? status.bar : "bg-slate-300"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="mt-2 text-sm text-slate-500">
+                {status ? (
+                  <>
+                    <span className={`font-medium tabular-nums ${status.text}`}>
+                      {(CYCLE_LIMIT - used).toFixed(1).replace(/\.0$/, "")}h left
+                    </span>{" "}
+                    of {CYCLE_LIMIT}. {status.note}.
+                  </>
+                ) : (
+                  `The limit is ${CYCLE_LIMIT} hours per cycle.`
+                )}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            aria-busy={isLoading}
+            className="mt-8 flex w-full items-center justify-center gap-2.5 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
+          >
+            {isLoading ? (
+              <>
+                <Spinner />
+                Planning route
+              </>
+            ) : (
+              "Plan trip"
+            )}
+          </button>
+        </form>
       </div>
-    </div>
+    </main>
   );
 };
 
