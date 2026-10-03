@@ -1,0 +1,61 @@
+# Kubernetes/base/frontend/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Security & Firewall:
+  - networkpolicy.yaml
+  - serviceaccount.yaml
+
+  # Traffic & Ingress:
+  - service.yaml
+
+  # Core Workload:
+  - deployment.yaml
+  - externalsecret.yaml
+
+# Autoscaling & Resilience:
+# - hpa.yaml
+# - pdb.yaml
+
+# Observability stack:
+# - prometheusrule.yaml
+# - servicemonitor.yaml
+
+# Generates frontend-config-<hash> from these literals and auto-rewrites
+# references (e.g. envFrom in deployment.yaml) so a content change forces
+# a new ConfigMap name -> triggers a real pod rollout on update:
+# configMapGenerator:
+#   - name: frontend-config
+#     literals:
+#       - AWS_REGION=us-east-1
+#       - S3_BUCKET_NAME=mycompany-prod-frontend-assets
+
+# PLACEHOLDER: literals below are dummy values for local/dev testing only.
+# TODO: replace with Vault Agent Injector or External Secrets Operator
+# before this is used against real AWS credentials in production.
+# Same hash-suffix + auto-rewrite behavior as configMapGenerator above.
+# secretGenerator:
+#   - name: frontend-secrets
+#     literals:
+#       - AWS_ACCESS_KEY_ID=test
+#       - AWS_SECRET_ACCESS_KEY=test
+#     type: Opaque
+
+# Modern way to automatically inject labels across all resources above:
+# labels:
+#   - pairs:
+#       app.kubernetes.io/name: M-treat-project #Overal project name
+#       app.kubernetes.io/component: frontend
+#       app.kubernetes.io/managed-by: kustomize
+#       app.kubernetes.io/part-of: m-treat-platform
+#     # includeSelectors: true # Automatically generates and matches selectors in Deployment, Service, PDB, etc.
+#     includeTemplates: true # Automatically injects labels into Pod templates' even though, overlays/dev and prod also have their own kustomization.yaml files
+configMapGenerator:
+  - name: frontend-nginx-config
+    files:
+      - default.conf
+commonLabels:
+  app.kubernetes.io/name: M-treat-project
+  app.kubernetes.io/part-of: m-treat-platform
+  app.kubernetes.io/version: "1.0.0"

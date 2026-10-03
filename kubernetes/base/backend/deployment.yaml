@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  minReadySeconds: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: backend-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: bruceminanga/eld-trip-planner-backend
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: backend-config # Kustomize will automatically map this to dev-backend-config-<hash>
+            - secretRef:
+                name: backend-secret # Kustomize will automatically map this to dev-backend-secret-<hash>
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: ALLOWED_HOSTS
+              value: "*"
+            - name: DB_HOST # Use whatever env var your settings.py reads (e.g., DATABASE_HOST, DB_HOST, POSTGRES_HOST)
+              value: "dev-postgres"
+            - name: DB_PORT
+              value: "5432"
+          # readinessProbe:
+          #   httpGet:
+          #     path: /api/ # Or /api/health/ or whatever endpoint Django responds to
+          #     port: 8000
+          #     httpHeaders:
+          #       - name: Host
+          #         value: localhost
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 10
+          #   timeoutSeconds: 2
+          #   failureThreshold: 3
+          # livenessProbe:
+          #   httpGet:
+          #     path: /api/
+          #     port: 8000
+          #   initialDelaySeconds: 15
+          #   periodSeconds: 20
+          #   timeoutSeconds: 2
+          #   failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+              ephemeral-storage: 50Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+              ephemeral-storage: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            # Django and WSGI/Gunicorn need a writable /tmp directory
+            - mountPath: /tmp
+              name: tmp-dir
+      volumes:
+        - emptyDir: {}
+          name: tmp-dir

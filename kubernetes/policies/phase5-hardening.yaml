@@ -1,0 +1,70 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-container-hardening
+spec:
+  validationFailureAction: Audit
+  rules:
+    - name: require-hardened-security-context
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              operations: [CREATE, UPDATE]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                [
+                  kube-system,
+                  monitoring,
+                  argocd,
+                  kyverno,
+                  kube-node-lease,
+                  kube-public,
+                  external-secrets,
+                ]
+      validate:
+        message: "Containers must run non-root, drop ALL capabilities, disable privilege escalation, and use read-only root filesystems."
+        pattern:
+          spec:
+            =(automountServiceAccountToken): false
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop:
+                      - ALL
+
+    - name: disallow-default-serviceaccount
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              operations: [CREATE, UPDATE] # <-- ONLY RUN ON CREATE/UPDATE
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                [
+                  kube-system,
+                  monitoring,
+                  argocd,
+                  kyverno,
+                  kube-node-lease,
+                  kube-public,
+                  external-secrets,
+                ]
+      validate:
+        message: "Workloads must declare a dedicated ServiceAccount and cannot use 'default'."
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.operation }}"
+                operator: In
+                value: ["CREATE", "UPDATE"]
+              - key: "{{ request.object.spec.serviceAccountName || '' }}"
+                operator: In
+                value: ["default", ""]

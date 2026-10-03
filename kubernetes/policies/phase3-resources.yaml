@@ -1,0 +1,64 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-resource-limits
+spec:
+  validationFailureAction: Audit
+  rules:
+    - name: require-cpu-mem-requests-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                [
+                  kube-system,
+                  monitoring,
+                  argocd,
+                  kyverno,
+                  kube-node-lease,
+                  kube-public,
+                  external-secrets,
+                ]
+      validate:
+        message: "All containers must define CPU and Memory requests and limits."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"
+
+    - name: enforce-guaranteed-memory-qos
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                [
+                  kube-system,
+                  monitoring,
+                  argocd,
+                  kyverno,
+                  kube-node-lease,
+                  kube-public,
+                  external-secrets,
+                ]
+      validate:
+        message: "Memory limit must equal memory request for Guaranteed QoS."
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].resources.requests.memory }}"
+                operator: NotEquals
+                value: "{{ request.object.spec.containers[].resources.limits.memory }}"

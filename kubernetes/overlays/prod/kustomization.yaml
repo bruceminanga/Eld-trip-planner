@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: frontend-prod
+namePrefix: prod-
+
+resources:
+  - ../../base/
+  - namespace.yaml
+  - pdb.yaml
+
+patches:
+  - path: deployment-patch.yaml
+
+# Labels specific to production:
+labels:
+  - pairs:
+      app.kubernetes.io/instance: frontend-prod
+      environment: prod
+    includeTemplates: true

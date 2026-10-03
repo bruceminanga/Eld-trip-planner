@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migration
+  annotations:
+    # Allows tools managing deployments to recreate the job when updated
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Automatically removes the finished job record from Kubernetes after 10 seconds
+  # so the name is freed up for Skaffold's next run
+  ttlSecondsAfterFinished: 10
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: dev-backend-sa
+      restartPolicy: OnFailure
+      containers:
+        - name: django-migration
+          image: bruceminanga/eld-trip-planner-backend
+          imagePullPolicy: IfNotPresent
+          command: ["python", "manage.py", "migrate"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          envFrom:
+            - configMapRef:
+                name: dev-backend-config-bd6ghtd46g
+            - secretRef:
+                name: dev-backend-secret-8652928k94

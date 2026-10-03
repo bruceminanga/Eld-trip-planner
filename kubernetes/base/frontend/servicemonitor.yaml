@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: app-monitor
+  labels:
+    release: prometheus-stack # Match your Prometheus Operator selector
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

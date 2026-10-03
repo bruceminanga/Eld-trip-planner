@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: my-app-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            cluster: https://kubernetes.default.svc
+          - env: staging
+            cluster: https://kubernetes.default.svc
+          - env: prod
+            cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: "my-app-{{env}}"
+    spec:
+      project: default
+      source:
+        repoURL: "https://github.com/bruceminanga/m-treat-project.git"
+        targetRevision: main
+        path: "kubernetes/overlays/{{env}}"
+      destination:
+        server: "{{cluster}}"
+        namespace: "frontend-{{env}}"
+      syncPolicy:
+        # automated:               # 👈 Commented out / removed still not using argocd
+        #   prune: true            # 👈 Commented out / removed
+        #   selfHeal: true         # 👈 Commented out / removed
+        syncOptions:
+          - CreateNamespace=true

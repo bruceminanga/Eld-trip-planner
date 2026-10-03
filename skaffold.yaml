@@ -1,0 +1,77 @@
+apiVersion: skaffold/v4beta14
+kind: Config
+metadata:
+  name: eld-trip-planner
+build:
+  local:
+    useBuildkit: true
+    useDockerCLI: true
+  artifacts:
+    - image: bruceminanga/eld-trip-planner-backend
+      context: backend
+      docker:
+        dockerfile: Dockerfile
+    - image: bruceminanga/eld-trip-planner-frontend
+      context: frontend
+      docker:
+        dockerfile: Dockerfile
+manifests:
+  kustomize:
+    paths:
+      - kubernetes/overlays/dev
+profiles:
+  - name: archived-base
+    manifests:
+      kustomize:
+        paths:
+          - Archived/kubernetes/base
+  - name: archived-dev
+    manifests:
+      kustomize:
+        paths:
+          - Archived/kubernetes/overlays/development
+  - name: base
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/base
+  - name: backend
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/base/backend
+  - name: frontend
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/base/frontend
+  - name: postgres
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/base/postgres
+  - name: shared
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/base/shared
+  - name: prod
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/overlays/prod
+  - name: staging
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/overlays/staging
+  - name: platform
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/platform
+  - name: policies
+    manifests:
+      kustomize:
+        paths:
+          - kubernetes/policies

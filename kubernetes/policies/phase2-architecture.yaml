@@ -1,0 +1,42 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-pod-architecture
+spec:
+  validationFailureAction: Audit
+  rules:
+    - name: require-image-digest
+      match:
+        any:
+        - resources:
+            kinds: [Pod]
+      exclude:
+        any:
+        - resources:
+            namespaces: [kube-system, monitoring, argocd, kyverno, kube-node-lease, kube-public, external-secrets]
+      validate:
+        message: "Images must be pinned with immutable SHA256 digest (repo/app@sha256:...)."
+        pattern:
+          spec:
+            containers:
+              - image: "*@sha256:*"
+
+    - name: require-spread-constraints
+      match:
+        any:
+        - resources:
+            kinds: [Deployment, StatefulSet]
+      exclude:
+        any:
+        - resources:
+            namespaces: [kube-system, monitoring, argocd, kyverno, kube-node-lease, kube-public, external-secrets]
+      validate:
+        message: "Deployments and StatefulSets must declare topologySpreadConstraints across zones or hosts."
+        pattern:
+          spec:
+            template:
+              spec:
+                topologySpreadConstraints:
+                  - maxSkew: ">0"
+                    topologyKey: "?*"
+                    whenUnsatisfiable: "DoNotSchedule | ScheduleAnyway"

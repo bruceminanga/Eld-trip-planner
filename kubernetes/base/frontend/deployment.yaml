@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  # Run 2 identical copies of the pod for redundancy / high availability
+  replicas: 1
+
+  # Wait 5 seconds after a new pod reports "Ready" before declaring it fully healthy
+  # and proceeding to terminate the old pod during a rolling update.
+  minReadySeconds: 5
+
+  # Tells the Deployment controller which existing Pods it is responsible for managing
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: M-treat-project
+      app.kubernetes.io/component: frontend
+
+  # Template used to generate each Pod
+  template:
+    metadata:
+      # Labels stamped onto every pod created by this template (must match the selector above!)
+      labels:
+        app.kubernetes.io/name: M-treat-project
+        app.kubernetes.io/component: frontend
+
+    spec:
+      serviceAccountName: frontend-sa
+      automountServiceAccountToken: false
+
+      # ========================================================================
+      # 1. POD-LEVEL SECURITY CONTEXT (applies to the entire Pod environment)
+      # ========================================================================
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: bruceminanga/eld-trip-planner-frontend
+
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+
+          # Only pull the image from the registry if it isn't already cached locally on the worker node
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: BACKEND_URL
+              value: "http://dev-backend-service:8000"
+          # Inject environment variables from external ConfigMaps and Secrets:
+          envFrom:
+            # - configMapRef:
+            #     name: frontend-config # Injects non-sensitive configs (e.g., API_URL, PORT)
+            - secretRef:
+                name: frontend-secrets # Injects sensitive credentials (e.g., API_KEY, DB_PASS)
+
+          # ====================================================================
+          # 2. CONTAINER-LEVEL SECURITY CONTEXT (applies to this specific container)
+          # ====================================================================
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # ====================================================================
+          # 3. ZERO-DOWNTIME LIFECYCLE HOOK
+          # ====================================================================
+          # lifecycle:
+          #   # Runs right BEFORE the pod is sent a SIGTERM signal during deletion/rolling update.
+          #   # Why sleep 5? It gives Kubernetes time to remove this pod's IP from the Service/Ingress endpoints
+          #   # so in-flight requests finish cleanly and don't hit a dead container (prevents 502 errors).
+          #   preStop:
+          #     exec:
+          #       command: ["/bin/sh", "-c", "sleep 5"]
+
+          # ====================================================================
+          # 4. HEALTH CHECK: Liveness Probe
+          # "Is the container alive or locked up/deadlocked?"
+          # If this fails, Kubernetes kills the container and restarts it.
+          # ====================================================================
+          # You don't need livenessprobe in here
+          # livenessProbe:
+          #   httpGet:
+          #     path: / # Request path
+          #     port: 8080 # Container port to probe
+          #   initialDelaySeconds: 5 # Wait 5s after startup before first check
+          #   periodSeconds: 10 # Check every 10s
+          #   timeoutSeconds: 2 # Fail check if response takes longer than 2s
+          #   failureThreshold: 3 # Restart container if it fails 3 consecutive times
+
+          # ====================================================================
+          # 5. HEALTH CHECK: Readiness Probe
+          # "Is the container ready to receive live user traffic right now?"
+          # If this fails, Kubernetes temporarily pulls the pod OUT of the Service rotation (no traffic routed).
+          # ====================================================================
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3 # Start checking 3s after startup
+            periodSeconds: 5 # Check every 5s
+            timeoutSeconds: 2 # Must respond within 2s
+            successThreshold: 1 # 1 success marks it healthy again
+            failureThreshold: 2 # 2 failed checks mark it unready (stops sending user traffic)
+
+          # ====================================================================
+          # 6. RESOURCE SPECIFICATION
+          # Governed by the LimitRange and ResourceQuota
+          # ====================================================================
+          resources:
+            requests:
+              cpu: 100m # Minimum guaranteed CPU: 0.1 cores (fits within Quota 400m for 2 replicas)
+              memory: 128Mi # Minimum guaranteed RAM: 128 MiB (fits within Quota 600Mi for 2 replicas)
+              ephemeral-storage: 50Mi
+            limits:
+              cpu: 200m # Hard cap on CPU: throttled if exceeding 0.2 cores (below LimitRange max 300m)
+              memory: 128Mi # Hard cap on RAM: killed (OOMKilled) if exceeding 128 MiB (below LimitRange max 256Mi)
+              ephemeral-storage: 100Mi
+
+          # ====================================================================
+          # MOUNT WRITABLE DIRECTORIES FOR NGINX
+          # ====================================================================
+          volumeMounts:
+            # 1. Fixes the exact crash: /var/lib/nginx/tmp/client_body
+            - name: nginx-tmp
+              mountPath: /var/lib/nginx/tmp
+
+            # 2. Fixes Nginx PID file creation (/var/run/nginx.pid)
+            - name: nginx-run
+              mountPath: /var/run
+
+            # 3. Standard temporary folder
+            - name: tmp-dir
+              mountPath: /tmp
+
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+
+      # ========================================================================
+      # EPHEMERAL VOLUMES DEFINITION
+      # ========================================================================
+      volumes:
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: tmp-dir
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: frontend-nginx-config

@@ -1,0 +1,36 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app-alerts
+  labels:
+    role: alert-rules
+spec:
+  groups:
+    - name: application.rules
+      rules:
+        # Alert on Pod Restarts
+        - alert: PodFrequentRestarts
+          expr: increase(kube_pod_container_status_restarts_total[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} is restarting frequently"
+
+        # Alert on OOMKilled
+        - alert: ContainerOOMKilled
+          expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Container {{ $labels.container }} in pod {{ $labels.pod }} was OOMKilled"
+
+        # Alert on Probe Failures
+        - alert: ProbeFailed
+          expr: increase(prober_probe_total{result="failed"}[5m]) > 5
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Health probe failed for {{ $labels.pod }}"

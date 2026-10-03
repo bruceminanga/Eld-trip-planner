@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-traffic
+  labels:
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # 1. Allow traffic coming from ingress-nginx
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8000
+          protocol: TCP
+    # 2. (Optional) Allow frontend to speak to backend directly if needed
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: frontend
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    # Allow CoreDNS lookups
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow connecting to your local mock/DB (e.g. LocalStack on 4566, PostgreSQL on 5432)
+    - to:
+        - ipBlock:
+            cidr: 192.168.122.1/32
+      ports:
+        - port: 4566
+          protocol: TCP

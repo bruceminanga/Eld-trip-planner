@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress
+  labels:
+    app.kubernetes.io/name: M-treat-project
+    app.kubernetes.io/part-of: m-treat-platform
+spec:
+  ingressClassName: nginx
+  rules:
+    # Notice: No "host:" key is defined here.
+    # This allows you to reach it via "localhost" OR via the Minikube IP directly!
+    - http:
+        paths:
+          # Rule 1: Specific path for the Backend API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-backend-service
+                port:
+                  number: 8000
+
+          # Rule 2: Static files for Django (CSS, JS, images) -> Routes to Backend
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-backend-service
+                port:
+                  number: 8000
+
+          # Rule 3: Django Admin portal -> Routes to Backend
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-backend-service
+                port:
+                  number: 8000
+
+          # Rule 4: Root catch-all for the Frontend UI (must be at the bottom)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-frontend-service
+                port:
+                  number: 80

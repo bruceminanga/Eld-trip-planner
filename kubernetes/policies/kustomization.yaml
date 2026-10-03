@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - phase1-probes.yaml
+  - phase2-architecture.yaml
+  - phase3-resources.yaml
+  - phase4-services.yaml
+  - phase5-hardening.yaml
+  - phase6-secrets.yaml
+  - phase7-labels.yaml

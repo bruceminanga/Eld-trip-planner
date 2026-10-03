@@ -1,0 +1,87 @@
+# ==============================================================================
+# POLICY 1: The "Default Deny All" Firewall Rule
+# ==============================================================================
+# The goal here is "Zero Trust": isolate every single pod in this namespace by default.
+# It shuts down all incoming and outgoing connections unless explicitly allowed later.
+# ==============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all # Unique name for this policy
+spec:
+  podSelector: {} # An empty object `{}` means: Match ALL pods in this namespace.
+
+  policyTypes:
+    - Ingress # Tells Kube to manage INCOMING traffic for the matched pods.
+    - Egress # Tells Kube to manage OUTGOING traffic for the matched pods.
+      # Because we listed Ingress & Egress, but DID NOT define
+      # any `ingress:` or `egress:` rules below, Kubernetes assumes:
+      # -> Allow 0 incoming connections (drop all)
+      # -> Allow 0 outgoing connections (drop all)
+
+---
+# ==============================================================================
+# POLICY 2: Selective Allowlist for the Frontend Pods
+# ==============================================================================
+# Since Policy 1 locked the frontend in a black hole, this policy selectively punches
+# specific holes in the firewall so the frontend can function properly.
+# ==============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-traffic # Name for this frontend-specific policy
+spec:
+  # Target only specific pods with matching labels (your frontend containers)
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: M-treat-project
+      app.kubernetes.io/component: frontend
+
+  # We are defining both incoming and outgoing rules for this pod
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # ----------------------------------------------------------------------------
+  # INGRESS RULES: Who is allowed to talk to the frontend?
+  # ----------------------------------------------------------------------------
+  ingress:
+    - from:
+        # Only allow traffic originating from pods inside this specific namespace:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx # Matches the NGINX Ingress Controller namespace
+      ports:
+        - protocol: TCP
+          port: 8080 # Only allow traffic hitting port 8080 (frontend port)
+
+  # ----------------------------------------------------------------------------
+  # EGRESS RULES: Who is the frontend allowed to talk to?
+  # ----------------------------------------------------------------------------
+  egress:
+    # --------------------------------------------------------------------------
+    # Egress Rule 1: DNS Resolution
+    # Without this, the frontend cannot resolve ANY domain names (e.g. internal or external URLs).
+    # --------------------------------------------------------------------------
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system # The namespace where CoreDNS / Kube-DNS lives
+      ports:
+        - protocol: UDP # Standard DNS queries run on UDP 53
+          port: 53
+        - protocol: TCP # Large DNS queries / fallbacks run on TCP 53
+          port: 53
+
+    # --------------------------------------------------------------------------
+    # Egress Rule 2: Outbound connection to a specific target IP
+    # (Typically LocalStack / AWS emulator or a host network service)
+    # --------------------------------------------------------------------------
+    - to:
+        - ipBlock:
+            cidr: 192.168.122.1/32 # Exactly this one IP (/32 means single host)
+      ports:
+        - protocol: TCP
+          port: 4566 # Port 4566 (standard default port for LocalStack)

@@ -1,0 +1,60 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-public-services
+spec:
+  validationFailureAction: Audit
+  rules:
+    - name: disallow-nodeport-and-external-lb
+      match:
+        any:
+          - resources:
+              kinds: [Service]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                [
+                  kube-system,
+                  monitoring,
+                  argocd,
+                  kyverno,
+                  kube-node-lease,
+                  kube-public,
+                  external-secrets,
+                ]
+      validate:
+        message: "Internal services must use ClusterIP. Ingress / Gateway API must terminate edge traffic."
+        pattern:
+          spec:
+            =(type): "ClusterIP"
+
+    - name: auto-generate-default-deny-netpol
+      match:
+        any:
+          - resources:
+              kinds: [Namespace]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                [
+                  kube-system,
+                  monitoring,
+                  argocd,
+                  kyverno,
+                  kube-node-lease,
+                  kube-public,
+                  external-secrets,
+                  default,
+                ]
+      generate:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: default-deny-all
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        data:
+          spec:
+            podSelector: {}
+            policyTypes: [Ingress, Egress]

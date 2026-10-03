@@ -1,119 +1,84 @@
-# 🚛 ELD Trip Planner
+# ☸️ M-Treat Platform — Kubernetes Architecture Lab
 
-### _Cloud-Native Trucking Compliance Made Simple_
-
-<p align="center">
-  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React"/>
-  <img src="https://img.shields.io/badge/Django-092E20?style=for-the-badge&logo=django&logoColor=green" alt="Django"/>
-  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
-  <img src="https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
-  <img src="https://img.shields.io/badge/Kubernetes-326ce5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Kubernetes"/>
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="MIT License"/>
-</p>
-
-<p align="center">
-  <strong>A production-ready, cloud-native application that solves real-world ELD compliance challenges while showcasing modern DevOps excellence.</strong>
-</p>
+A security-conscious, declarative Kubernetes lab for learning cloud-native architecture, deployment hardening, and operational decision-making.
 
 ---
 
-## 🌟 What This Project Delivers
+## 🧭 Kubernetes Features: When to Use & When to Skip
 
-**For Truckers:** Intelligent route planning with automated Hours of Service (HOS) compliance, ensuring drivers never violate federal regulations while optimizing their time on the road.
+### 1. Networking & Traffic Routing
 
-**For Engineers:** A comprehensive showcase of cloud-native architecture, demonstrating enterprise-grade DevOps practices from containerized development to Kubernetes orchestration.
+#### **Services (`ClusterIP`, `NodePort`, `LoadBalancer`)**
+* **What it does:** Gives pods a stable IP address and internal DNS name while load-balancing traffic between replicas.
+* **When to use:** Whenever pods need to talk to each other reliably without hardcoding dynamic pod IPs.
+* **When to skip:** Never for web/API tiers. Only skip for headless stateful apps (like Kafka or Cassandra) that need direct pod-to-pod identity.
 
-This isn't just another CRUD app—it's a battle-tested solution that addresses the $2.8 billion problem of ELD compliance violations in the trucking industry.
-
----
-
-## ✨ Feature Showcase
-
-### 🎯 User-Facing Features
-
-- **🗺️ Smart Route Planning** - Leverages Geoapify API for optimal routing
-- **⏰ HOS Compliance Automation** - Automatically calculates mandatory rest breaks
-- **📱 Interactive Dashboard** - Real-time map visualization with MapLibre GL JS
-- **📊 Comprehensive Reporting** - Export compliance logs to JSON, CSV, and PDF
-- **🔮 Predictive Analytics** - Generate ELD logs before trips begin
-
-### 🚀 DevOps Excellence
-
-- **🐳 Full Containerization** - Docker & Docker Compose for consistent environments
-- **☸️ Kubernetes-Native** - Production-ready orchestration with health checks
-- **🔄 GitOps Ready** - GitHub Actions CI/CD pipeline included
-- **📦 Persistent Storage** - StatefulSet PostgreSQL with automatic backups
-- **🌐 Production Networking** - Nginx Ingress with custom routing rules
+#### **Ingress & Gateway API**
+* **What it does:** Acts as the entry point from outside the cluster, handling TLS/HTTPS termination and routing requests by hostname or URL path.
+* **When to use:** When exposing multiple services over a single external IP (e.g., `api.example.com` → backend, `app.example.com` → frontend).
+* **When to skip:** Internal microservices, background workers, or local testing via `kubectl port-forward`.
 
 ---
 
-## 🛠️ Technology Stack
+### 2. Security & Access Control
 
-| Layer              | Technologies                                             |
-| ------------------ | -------------------------------------------------------- |
-| **Frontend**       | React 18, Vite, Tailwind CSS, MapLibre GL JS             |
-| **Backend**        | Python 3.11, Django 4.2, Django REST Framework, Gunicorn |
-| **Database**       | PostgreSQL 15 with optimized queries and indexing        |
-| **DevOps**         | Docker, Kubernetes, Nginx, GitHub Actions                |
-| **Infrastructure** | Minikube (local), ready for AWS/GCP/Azure                |
-| **APIs**           | Geoapify (Geocoding, Routing, Tiles)                     |
+#### **Network Policies**
+* **What it does:** Acts as a pod firewall controlling allowed ingress and egress traffic at L3/L4.
+* **When to use:** Multi-tenant clusters, production environments, and anywhere you want a zero-trust model (e.g., stopping frontend pods from accessing internal cluster databases).
+* **When to skip:** Early local prototyping where you just want to test if services can talk to each other without debugging firewall blocks.
+
+#### **RBAC (`Role`, `RoleBinding`)**
+* **What it does:** Restricts who can do what with the Kubernetes API.
+* **When to use:** 
+  * In-cluster apps/tools that manage resources (operators, CI runners, monitoring agents).
+  * Limiting human developers to specific namespaces.
+* **When to skip:** Standard web workloads. If your app only serves HTTP requests, disable the API token (`automountServiceAccountToken: false`) and skip RBAC entirely.
+
+#### **Workload Hardening (`securityContext`)**
+* **What it does:** Forces containers to run as non-root users, drops Linux capabilities, and makes root filesystems read-only.
+* **When to use:** Always in production to prevent container breakout and lateral movement if an app gets compromised.
+* **When to skip:** Quick throwaway experiments, or legacy containers that strictly require root privileges to boot.
 
 ---
 
-## 🚀 Quick Start Guide
+### 3. Stability & Scheduling
 
-### Prerequisites
+#### **Resource Quotas & LimitRanges**
+* **What it does:** Caps CPU, RAM, and pod counts per namespace to prevent any single app from exhausting cluster capacity.
+* **When to use:** Multi-team environments, production clusters, or cost-budgeted namespaces.
+* **When to skip:** Dedicated single-tenant clusters with only one known workload.
+
+#### **Advanced Scheduling (`affinity`, `topologySpread`, `tolerations`)**
+* **What it does:** Controls which nodes pods run on (e.g., spreading replicas across zones or placing workloads on GPU nodes).
+* **When to use:** 
+  * High availability: Ensuring 2 replicas don't sit on the same node during node crashes.
+  * Specialized hardware: Targeting ARM, GPU, or cheap Spot instances.
+* **When to skip:** Single-node lab clusters (Kind/Minikube) or uniform clusters where the default scheduler's placement is sufficient.
+
+---
+
+### 4. Scaling & Storage
+
+#### **Autoscaling (HPA & KEDA)**
+* **What it does:** Dynamically scales pod count based on CPU/RAM (HPA) or external event queues (KEDA).
+* **When to use:** Production workloads with spiky traffic, or asynchronous workers reading from queues (Kafka, RabbitMQ, SQS).
+* **When to skip:** Dev/staging environments, or apps where scaling would exceed strict resource quotas or overwhelm downstream databases.
+
+#### **Persistent Volumes (`PersistentVolumeClaim`)**
+* **What it does:** Attaches durable storage that outlives pod restarts and node migrations.
+* **When to use:** Stateful apps like databases (Postgres, MySQL), file-storage systems, or persistent caches.
+* **When to skip:** 12-factor stateless apps (frontends, stateless REST APIs). Use ephemeral `emptyDir` scratch disks for temporary files instead.
+
+---
+
+## 🚀 Quickstart
 
 ```bash
-# Required tools
-docker --version          # >= 20.10
-minikube version          # >= 1.25
-kubectl version --client  # >= 1.24
-```
+# Render all manifests
+kubectl kustomize .
 
-### 🏠 Local Development (Fastest Path)
+# Apply to cluster
+kubectl apply -k .
 
-Perfect for active development with hot-reloading:
-
-```bash
-# 1. Clone and setup
-git clone https://github.com/bruceminanga/Eld-trip-planner.git
-cd Eld-trip-planner
-cp .env.example .env.dev
-
-# 2. Add your API keys to .env.dev
-# GEOAPIFY_API_KEY=your_key_here
-
-# 3. Launch the stack
-docker-compose up --build
-
-# 🎉 Visit http://localhost:5173
-```
-
-### ☸️ Production Simulation (Kubernetes)
-
-Experience the full cloud-native deployment:
-
-```bash
-# 1. Initialize Minikube cluster
-minikube start --memory=4096 --cpus=4
-minikube addons enable ingress
-
-# 2. Build images in Minikube's Docker environment
-eval $(minikube -p minikube docker-env)
-
-# Build backend
-docker build -t eld-backend:latest -f backend/Dockerfile backend/
-
-# Build frontend
-docker build -t eld-frontend:latest -f frontend/Dockerfile.prod frontend/
-
-# 3. Deploy to Kubernetes
-kubectl apply -f kubernetes/base/
-kubectl apply -f kubernetes/overlays/development/
-
-# 4. Access your application
-echo "🌐 Application URL: http://$(minikube ip)"
-```
-
-**🔧 Pro Tip:** Update `DJANGO_ALLOWED_HOSTS` in `kubernetes/base/configmap.yml` with your Minikube IP for proper routing.
+# Forward frontend to localhost
+kubectl port-forward -n frontend-dev svc/dev-frontend-service 8080:80

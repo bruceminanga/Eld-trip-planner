@@ -115,9 +115,14 @@ WSGI_APPLICATION = "config.wsgi.application"
 # }
 
 DATABASES = {
-    "default": dj_database_url.config(
-        default=config("DATABASE_URL", default="postgres://postgres:postgres@db:5432/postgres")
-    )
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv('DB_NAME', 'mtreat_db'),
+        "USER": os.getenv('DB_USER', 'postgres'),
+        "PASSWORD": os.getenv('DB_PASSWORD', 'postgrespassword'),
+        "HOST": os.getenv('DB_HOST', 'db'), 
+        "PORT": os.getenv('DB_PORT', '5432'),
+    }
 }
 
 # Password validation
