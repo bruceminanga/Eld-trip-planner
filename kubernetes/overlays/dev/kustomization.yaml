@@ -5,40 +5,47 @@ namespace: frontend-dev
 namePrefix: dev-
 
 resources:
-  - ../../base/ # Ensure this points directly to where base kustomization.yaml is
-  - namespace.yaml
-  - ingress.yaml
+- ../../base/
+- namespace.yaml
+- ingress.yaml
+
+
 
 configMapGenerator:
-  - name: backend-config
-    literals:
-      - DEBUG=True
-      - ALLOWED_HOSTS=*
-
-      - DB_HOST=dev-postgres # ◄── FIX
-      - DB_PORT=5432 # ◄── FIX
-      - DB_NAME=mydb # ◄── FIX
-      - DB_USER=myuser
-
-      - POSTGRES_DB=mydb
-      - POSTGRES_USER=myuser
-      - POSTGRES_HOST=dev-postgres
-      - POSTGRES_PORT=5432
-      - DJANGO_SUPERUSER_USERNAME=bruce
-      - DJANGO_SUPERUSER_EMAIL=admin@example.com
+- literals:
+  - DEBUG=True
+  - ALLOWED_HOSTS=*
+  - DB_HOST=dev-postgres
+  - DB_PORT=5432
+  - DB_NAME=mydb
+  - DB_USER=myuser
+  - POSTGRES_DB=mydb
+  - POSTGRES_USER=myuser
+  - POSTGRES_HOST=dev-postgres
+  - POSTGRES_PORT=5432
+  - DJANGO_SUPERUSER_USERNAME=bruce
+  - DJANGO_SUPERUSER_EMAIL=admin@example.com
+  name: backend-config
 
 secretGenerator:
-  - name: backend-secret
-    literals:
-      - SECRET_KEY=any-local-secret-key-here
-      - DB_PASSWORD=stronglocalpassword
-      - POSTGRES_PASSWORD=stronglocalpassword
-      - DJANGO_SUPERUSER_PASSWORD=stronglocalpassword
-      - GEOAPIFY_API_KEY=ec4b42ecfa9c4b53a239b7ff842e5990
+- literals:
+  - SECRET_KEY=any-local-secret-key-here
+  - DB_PASSWORD=stronglocalpassword
+  - POSTGRES_PASSWORD=stronglocalpassword
+  - DJANGO_SUPERUSER_PASSWORD=stronglocalpassword
+  - GEOAPIFY_API_KEY=ec4b42ecfa9c4b53a239b7ff842e5990
+  name: backend-secret
 
 # Only inject labels UNIQUE to the 'dev' environment:
 labels:
-  - pairs:
-      app.kubernetes.io/instance: frontend-dev
-      environment: dev
-    includeTemplates: true
+- includeTemplates: true
+  pairs:
+    app.kubernetes.io/instance: frontend-dev
+    environment: dev
+images:
+- name: bruceminanga/eld-trip-planner-backend
+  newName: bruceminanga/eld-trip-planner-backend
+  newTag: 1cd05cb6b23a0a431f706a67e53d9eecea055865
+- name: bruceminanga/eld-trip-planner-frontend
+  newName: bruceminanga/eld-trip-planner-frontend
+  newTag: 1cd05cb6b23a0a431f706a67e53d9eecea055865
